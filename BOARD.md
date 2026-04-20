@@ -23,7 +23,7 @@ Assignees: `K` = Krzysztof · `?` = unassigned / open for collaborator
 | # | Task | Status | Quiz | Who | Notes |
 |---|------|--------|------|-----|-------|
 | 1.1 | Set up repo structure | ✅ | 🏆 | K | Match layout in CLAUDE.md |
-| 1.2 | `Player` dataclass | 🔲 | ⬜ | K | |
+| 1.2 | `Player` dataclass | 🔄 in progress | ⬜ | K | |
 | 1.3 | `Enemy` dataclass + `BehaviourType` enum | 🔲 | ⬜ | K | |
 | 1.4 | `Item` dataclass + `ItemType` enum | 🔲 | ⬜ | K | |
 | 1.5 | `Floor` model | 🔲 | ⬜ | K | tile grid, enemies, items, stairs pos |
@@ -157,6 +157,7 @@ Assignees: `K` = Krzysztof · `?` = unassigned / open for collaborator
 - Replay system (store action log, replay from seed)
 - Discord webhook on new #1 global score
 - Mobile touch controls
+- **Speed / Luck stats on `Player`** (turn-order resolution + crit / loot RNG) — deferred from v1, which ships with HP / Attack / Defense only
 
 ### CI / Quality pipelines (suggested — not yet scheduled)
 - **`import-linter` in CI** — fail the build if anything inside `src/domain/` or `src/application/` imports a forbidden framework (fastapi/sqlalchemy/redis/celery/pydantic). This automates the golden hexagonal rule that `/audit` checks manually.
