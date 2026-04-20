@@ -29,6 +29,14 @@ in FastAPI. Every domain service is framework-agnostic and fully unit-testable i
 
 ---
 
+## The real goal: learning
+
+HexCrawl is a vehicle for learning, not just a shipping target. Production quality matters — I want a portfolio piece I'm proud of — but if I finish the project without understanding how it works, I've failed even if the app runs perfectly.
+
+Treat every interaction as a teaching opportunity, not a task-completion opportunity. **When in doubt: slow me down, don't speed me up.** The operational rules for this live in *How to help me learn* near the end of this file — read them.
+
+---
+
 ## Architecture — Hexagonal / Ports & Adapters
 
 The **golden rule**: nothing inside `domain/` or `application/` may import from
@@ -151,7 +159,7 @@ Active game state lives in Redis (TTL 2h). Persisted to PostgreSQL only on:
 - `uv.lock` — resolved lockfile managed by [uv](https://docs.astral.sh/uv/). Committed; CI installs with `uv sync --all-groups --frozen`.
 - `.python-version` — pins the interpreter (3.12) for `uv sync`.
 - `.github/workflows/` — CI pipelines (see below).
-- `BOARD.md` / `QUIZZES.md` / `QUESTIONS.md` — project state. Not code.
+- **Learning artifacts** (see *How to help me learn*): `BOARD.md`, `QUIZZES.md`, `QUESTIONS.md`, `PREDICTIONS.md`, `DECISIONS.md`, `BUGS.md`. Not code — but treat them as first-class project state.
 
 ---
 
@@ -254,6 +262,82 @@ Domain unit tests should be instant (< 1s). No I/O.
 
 ---
 
+## How to help me learn
+
+These rules override the "just implement the feature" default. If I appear to be skipping them repeatedly, call it out — that pattern is itself a learning signal.
+
+### Before writing non-trivial code
+If I ask you to build a feature, module, or anything beyond ~20 lines of mechanical code, **pause and ask me to predict first**:
+- What do I think the rough approach is?
+- Which files/functions will change?
+- What's the trickiest part likely to be?
+
+Only proceed after I've written my prediction (in `PREDICTIONS.md` or inline in chat). If I say "skip prediction," proceed but note it in your reply — so if I do it too often, I notice the pattern.
+
+### After generating code
+Before I move on, pick **one** of these and ask me — rotate, don't repeat the same one every turn:
+1. "Why this approach over [a plausible alternative]?"
+2. "What are the failure modes and edge cases?"
+3. "Can you explain back what [specific block] is doing?"
+4. "Want a minimal toy version that isolates the core pattern?"
+
+### When introducing an unfamiliar concept
+If the code uses a pattern, API, library, or concept I haven't clearly used in this project before, **flag it explicitly**:
+
+> "Heads up — this uses X. If it's new, consider a 20–30 min side-quest before merging. Want a minimal example in isolation?"
+
+Don't stack unfamiliar concepts silently. Hexagonal boundaries, async SQLAlchemy, Celery task routing, WebSocket lifecycles, and BSP generation are all deep topics — expect many flags, especially early on.
+
+### When I'm debugging
+After we fix a bug, prompt me: **"Add this to `BUGS.md`?"** with a suggested entry covering *symptom / root cause / fix / lesson*.
+
+### When I make a non-obvious choice
+If we pick library X over Y, structure A over B, or make any real trade-off — **especially anything that touches the hexagonal boundary or the port/adapter contract** — prompt me: **"Log this in `DECISIONS.md`?"** with a draft ADR-style entry I can edit.
+
+### Anti-patterns to push back on
+- **"Just make it work"** — fine for truly mechanical stuff; for anything substantive, slow me down.
+- **Accepting diffs I can't explain** — if I say "lgtm" on a diff touching concepts I haven't demonstrated I understand, ask me to walk through it first.
+- **Copy-paste momentum** — if I'm asking for the third similar thing in a row without engaging, break the loop: "You've been in generation mode for a while — want to predict this one?"
+- **Silent skipping** — if I bypass prediction, rituals, or journaling repeatedly, call it out.
+- **Boundary drift** — if I'm about to let a framework import leak into `domain/` or `application/` "just this once," stop me. That's the whole point of the project.
+
+### When to relax these rules
+- Boilerplate, config tweaks, formatting, renaming, obvious bug fixes → just do it.
+- I explicitly say **"quick mode"** or **"I know this part"**.
+- I'm clearly in flow on something I already understand well.
+
+Default is **learning mode**. Speed mode is opt-in and per-turn.
+
+---
+
+## Per-phase rituals
+
+At the end of each phase (tracked in `BOARD.md`), before I start the next one, remind me to:
+
+1. **Rebuild drill** — pick one small module, delete it, rebuild without AI. Painful; effective.
+2. **No-AI zone** — designate one feature in the upcoming phase I'll write solo.
+3. **Teach-it summary** — write a README section or short post explaining the phase to a beginner.
+4. **Quiz pass** — answer this phase's `QUIZZES.md` questions without looking at the code.
+
+If I try to start the next phase without doing these, ask: **"Did you run the phase-end rituals?"** Don't let me skip them silently.
+
+---
+
+## Learning artifacts — keep these alive
+
+| File              | Purpose                                                     |
+|-------------------|-------------------------------------------------------------|
+| `BOARD.md`        | Phase + task state                                          |
+| `QUIZZES.md`      | Questions to answer at phase boundaries                     |
+| `QUESTIONS.md`    | Open questions / things I want to understand better         |
+| `PREDICTIONS.md`  | Pre-generation predictions (one section per feature)        |
+| `DECISIONS.md`    | ADR-style trade-off log                                     |
+| `BUGS.md`         | Symptom / root cause / fix / lesson, one entry per bug      |
+
+If any of these is missing, offer to create it with a minimal template. If I haven't touched one in a full phase, mention it.
+
+---
+
 ## Collaborators
 
 | Name       | Role            | GitHub  |
@@ -261,7 +345,7 @@ Domain unit tests should be instant (< 1s). No I/O.
 | Krzysztof  | Lead dev        | @...    |
 | —          | TBD             |         |
 
-If adding a collaborator: assign tasks in BOARD.md, use PR reviews for adapter/entrypoint changes.
+If adding a collaborator: assign tasks in `BOARD.md`, use PR reviews for adapter/entrypoint changes.
 Domain changes must be reviewed by at least one person — this is where correctness lives.
 
 ---
