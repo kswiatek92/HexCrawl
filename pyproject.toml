@@ -1,0 +1,51 @@
+[project]
+name = "hexcrawl"
+version = "0.0.0"
+description = "Browser-based turn-based dungeon crawler with a global leaderboard."
+requires-python = ">=3.12"
+dependencies = [
+    "pydantic>=2",
+    "pydantic-settings>=2",
+    "structlog>=24",
+]
+
+[dependency-groups]
+dev = [
+    "ruff",
+    "black",
+    "mypy",
+    "pytest",
+    "pytest-asyncio",
+    "pytest-cov",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.black]
+line-length = 100
+target-version = ["py312"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+
+[[tool.mypy.overrides]]
+module = ["src.domain.*", "src.application.*"]
+disallow_any_explicit = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.coverage.run]
+source = ["src"]
+omit = ["src/**/__init__.py"]
+
+[tool.coverage.report]
+show_missing = true

@@ -147,7 +147,9 @@ Active game state lives in Redis (TTL 2h). Persisted to PostgreSQL only on:
 - `tests/` — pytest tree (`unit/`, `integration/`, `e2e/`).
 - `frontend/` — React + Vite app. Its own `package.json`, `pnpm-lock.yaml`, `tsconfig.json`.
 - `alembic/` — migrations.
-- `requirements/` — pinned pip requirements (`base.txt`, `dev.txt`, `prod.txt`).
+- `pyproject.toml` — Python project metadata, runtime deps (`[project]`), dev deps (`[dependency-groups] dev`), and tool config (ruff, black, mypy, pytest, coverage).
+- `uv.lock` — resolved lockfile managed by [uv](https://docs.astral.sh/uv/). Committed; CI installs with `uv sync --all-groups --frozen`.
+- `.python-version` — pins the interpreter (3.12) for `uv sync`.
 - `.github/workflows/` — CI pipelines (see below).
 - `BOARD.md` / `QUIZZES.md` / `QUESTIONS.md` — project state. Not code.
 
@@ -156,11 +158,12 @@ Active game state lives in Redis (TTL 2h). Persisted to PostgreSQL only on:
 ## Tooling & CI
 
 ### Python toolchain
-- **Lint:** `ruff check src tests`
-- **Format:** `black src tests` (run `black --check` in CI)
-- **Types:** `mypy src` — strict enough that `Any` in `domain/` / `application/` fails.
-- **Tests:** `pytest` with `pytest-asyncio` and `pytest-cov`. Coverage gate: **≥ 80%** (`--cov-fail-under=80`).
-- **Migrations:** `alembic upgrade head`, `alembic check` in CI if available.
+- **Package / env manager:** [`uv`](https://docs.astral.sh/uv/). Runtime deps live in `pyproject.toml` under `[project]`; dev tools under `[dependency-groups] dev`. Install everything with `uv sync --all-groups` (or `--frozen` in CI).
+- **Lint:** `uv run ruff check src tests`
+- **Format:** `uv run black src tests` (CI runs `uv run black --check`)
+- **Types:** `uv run mypy src` — strict enough that `Any` in `domain/` / `application/` fails.
+- **Tests:** `uv run pytest` with `pytest-asyncio` and `pytest-cov`. Coverage gate: **≥ 80%** (`--cov-fail-under=80`).
+- **Migrations:** `uv run alembic upgrade head`, `uv run alembic check` in CI if available.
 
 ### Frontend toolchain
 - **Package manager:** `pnpm` (version 9). Lockfile: `frontend/pnpm-lock.yaml`.
@@ -179,7 +182,7 @@ Workflows live in `.github/workflows/`. Each has a `preflight` job that skips do
 | Python CI | `python.yml` | push/PR to `main` | `lint` (ruff + black), `typecheck` (mypy), `test` (pytest + coverage, Postgres + Redis services) |
 | Frontend CI | `frontend.yml` | push/PR to `main` | `lint-and-format` (ESLint + Prettier), `typecheck` (tsc), `test` (Vitest + coverage), `build` (Vite) |
 
-Dependabot (`.github/dependabot.yml`) updates pip, npm, GitHub Actions, and Docker weekly.
+Dependabot (`.github/dependabot.yml`) updates uv (Python), npm (frontend), GitHub Actions, and Docker weekly.
 
 ### Definition of "green CI"
 A PR is mergeable when:
@@ -194,26 +197,26 @@ A PR is mergeable when:
 ## Local dev setup
 
 ```bash
-# 1. Clone and create venv
-python -m venv .venv && source .venv/bin/activate
+# 1. Install uv (once) — https://docs.astral.sh/uv/
+curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# 2. Install deps
-pip install -r requirements/dev.txt
+# 2. Sync runtime + dev deps into .venv/ (reads pyproject.toml + uv.lock)
+uv sync --all-groups
 
 # 3. Start infra
 docker compose up -d postgres redis
 
 # 4. Run migrations
-alembic upgrade head
+uv run alembic upgrade head
 
 # 5. Start API
-uvicorn src.entrypoints.http.main:app --reload
+uv run uvicorn src.entrypoints.http.main:app --reload
 
 # 6. Start Celery worker (separate terminal)
-celery -A src.adapters.tasks.celery_app worker --loglevel=info
+uv run celery -A src.adapters.tasks.celery_app worker --loglevel=info
 
 # 7. Start Celery Beat (separate terminal)
-celery -A src.adapters.tasks.celery_app beat --loglevel=info
+uv run celery -A src.adapters.tasks.celery_app beat --loglevel=info
 ```
 
 ### Key env vars (copy `.env.example` → `.env`)
