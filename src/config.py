@@ -8,7 +8,7 @@ class Settings(BaseSettings):
 
     database_url: str = "postgresql+asyncpg://hexcrawl:hexcrawl@localhost/hexcrawl"
     redis_url: str = "redis://localhost:6379/0"
-    jwt_secret: str = "change-me"
+    jwt_secret: str
     celery_broker_url: str = "redis://localhost:6379/1"
     celery_result_backend: str = "redis://localhost:6379/2"
     supabase_url: str = ""
