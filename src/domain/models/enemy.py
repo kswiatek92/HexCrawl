@@ -1,14 +1,15 @@
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 from uuid import UUID
 
 
-class BehaviourType(str, Enum):
+class BehaviourType(StrEnum):
     """Top-level enemy archetype.
 
-    Inherits from ``str`` so values serialise cleanly as JSON strings over
-    the WebSocket turn loop and compare equal to their wire-format literals.
-    Granular variants (e.g. cowardly melee) are deferred to v2.
+    ``StrEnum`` (Python 3.11+) gives us str inheritance — values serialise
+    cleanly as JSON over the WebSocket turn loop and compare equal to their
+    wire-format literals. Granular variants (e.g. cowardly melee) are
+    deferred to v2.
     """
 
     MELEE = "MELEE"
