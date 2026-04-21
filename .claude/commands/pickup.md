@@ -12,15 +12,18 @@ This command produces:
 ## Scope Boundaries
 
 **You MUST NOT:**
-- Write or modify any source code, `BOARD.md`, `QUIZZES.md`, `CLAUDE.md`, `QUESTIONS.md`, or any task notes file.
+- Write or modify any source code, `BOARD.md`, `QUIZZES.md`, `CLAUDE.md`, or any task notes file.
 - Start implementation — that's `/implement`'s job.
 - Create new tasks on the board.
-- Answer open questions on the user's behalf. Surface them; let the human decide.
+- **Invent** answers to open questions or mark them resolved on your own judgement. You may *recommend* an answer, but the human must confirm before you write it back.
 
 **You MUST:**
 - Read `CLAUDE.md`, `BOARD.md`, and (if present) `QUESTIONS.md` to understand status and blockers.
 - Check remote branches to avoid collisions.
 - Create and push the branch before finishing.
+
+**You MAY:**
+- Edit `QUESTIONS.md` **only** to record decisions the user has explicitly given you in this turn. Flip `- [ ]` → `- [x]` and append the decision inline after `→`. Preserve the original question text verbatim. Never edit questions the user hasn't answered.
 
 ## Workflow
 
@@ -47,8 +50,11 @@ Surface anything the developer still owes an answer on. Check these sources **in
 If any open questions are found:
 
 - List every one with its source (file + line) and the task ID it blocks, if any.
-- Tell the user: "Answer these before I create a branch, or say 'proceed anyway' to pick up the task regardless."
-- Wait for the user's response. If they say proceed, continue; otherwise stop here.
+- Tell the user: "Answer these before I create a branch, say 'proceed anyway' to pick up the task regardless, or ask me to recommend defaults."
+- Wait for the user's response. Three possible paths:
+  1. **User provides answers** (directly, or by asking you to recommend and then confirming). Record each answered question in `QUESTIONS.md` by flipping `- [ ]` → `- [x]` and appending `→ <decision>` after the original question text. Preserve the original text verbatim. Only record questions the user actually answered this turn — leave others open. Then continue to Step 4.
+  2. **User says "proceed anyway"**. Do not edit `QUESTIONS.md`. Continue to Step 4; the questions remain open for `/implement` to handle.
+  3. **User asks clarifying questions or defers**. Answer them, then loop back to the start of Step 3.
 
 If no open questions, say "No open questions — proceeding." in one line and continue.
 
@@ -103,8 +109,8 @@ Tell the user:
 ## Important Rules
 
 - Do NOT proceed past Step 6 into any implementation work.
-- Do NOT modify any files. This command only reads files and does git operations.
+- The only file this command writes to is `QUESTIONS.md`, and only to record decisions the user explicitly provided this turn (Step 3). All other files — source code, `BOARD.md`, `QUIZZES.md`, `CLAUDE.md`, task notes — are read-only.
 - If `$ARGUMENTS` specifies a task that doesn't exist or isn't `🔲 backlog`, say so and stop.
 - If there are no eligible tasks (phase gate blocking, or all `✅ done`), explain clearly — list what's blocking and what quiz / task needs to happen first.
 - Always push the branch before finishing. The pushed branch is the public claim.
-- Never invent an open question or mark one as resolved. Surface the text verbatim.
+- Never invent an open question or answer one on the user's behalf. Surface question text verbatim; only record decisions the user has explicitly confirmed.
