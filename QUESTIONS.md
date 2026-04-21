@@ -26,9 +26,9 @@ Rules:
 - [x] Does `BehaviourType` start as `MELEE | RANGED | BOSS` exactly, or more granular (e.g. `MELEE_AGGRESSIVE`, `MELEE_COWARD`)? → **`MELEE | RANGED | BOSS`** for v1, matching CLAUDE.md's Key Domain Concepts verbatim. Granular variants (`MELEE_COWARD`, etc.) are cheap to add in v2 — nothing else in the domain pattern-matches on the enum yet.
 
 ### Item + ItemType (task 1.4)
-- [ ] Which item types ship in v1? (potions, weapons, armor, scrolls, gold, keys?)
-- [ ] Stackable items — flat count on one instance, or many instances?
-- [ ] Item multiplier for scoring — per-type weight, per-rarity, or per-item value?
+- [x] Which item types ship in v1? (potions, weapons, armor, scrolls, gold, keys?) → **`WEAPON | ARMOR | SHIELD | POTION | KEY`**. Each maps to an existing Player slot: weapon/armor/shield to their dedicated slots; POTION and KEY both live in the `consumables` stack (cap 5 total). Scrolls / gold deferred to v2.
+- [x] Stackable items — flat count on one instance, or many instances? → **Flat `count: int = 1` on the `Item` instance.** Stackable types (`POTION`, `KEY`) merge into one instance on pickup; non-stackable types (`WEAPON`, `ARMOR`, `SHIELD`) always have `count=1`. Consumables stack is a list of ≤5 `Item` instances.
+- [x] Item multiplier for scoring — per-type weight, per-rarity, or per-item value? → **Per-type weight.** Static `ItemType → float` map owned by `ScoreService` (exact values TBD during task 1.7). Rarity / per-item overrides can layer in later without breaking the contract.
 
 ### Floor (task 1.5)
 - [ ] Grid dimensions — fixed (e.g. 80×50) or scales with floor index?
