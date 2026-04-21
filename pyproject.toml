@@ -4,7 +4,7 @@ version = "0.0.0"
 description = "Browser-based turn-based dungeon crawler with a global leaderboard."
 requires-python = ">=3.12"
 dependencies = [
-    "pydantic>=2",
+    "pydantic>=2.13.3",
     "pydantic-settings>=2.14.0",
     "structlog>=24",
 ]
