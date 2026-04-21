@@ -20,10 +20,10 @@ Rules:
 - [x] Level / XP system in v1, or flat stats with gear-only growth? → **No XP.** Flat stats, gear-only growth.
 
 ### Enemy + BehaviourType (task 1.3)
-- [ ] HP / damage scaling across floors — linear, exponential, hand-authored tables? **Constraint:** floor-1 melee damage must cap at 1 HP per hit (Player starts at 20 HP, so a stand-still death takes ~20 turns — leaves room to counter-attack / heal).
-- [ ] Ranged enemies: which tile types block line-of-sight? (walls only? doors?)
-- [ ] Boss cadence — every 5th floor (per Backlog in BOARD.md) or something else for v1?
-- [ ] Does `BehaviourType` start as `MELEE | RANGED | BOSS` exactly, or more granular (e.g. `MELEE_AGGRESSIVE`, `MELEE_COWARD`)?
+- [x] HP / damage scaling across floors — linear, exponential, hand-authored tables? → **Linear** for v1. Predictable TTK, easier to balance; the scaling function can be swapped later without touching the `Enemy` dataclass. Floor-1 melee damage cap of 1 HP/hit still holds.
+- [x] Ranged enemies: which tile types block line-of-sight? (walls only? doors?) → **`WALL` and closed `DOOR` block LOS.** Rule: "solid, IRL view-blocking" tiles block. `FLOOR` and `STAIRS` do not. Future blockers (smoke, tall grass, pillars) slot in as new tile types without changing the rule.
+- [x] Boss cadence — every 5th floor (per Backlog in BOARD.md) or something else for v1? → **Every 5th floor** (floors 5, 10, 15, …), matching the Backlog entry.
+- [x] Does `BehaviourType` start as `MELEE | RANGED | BOSS` exactly, or more granular (e.g. `MELEE_AGGRESSIVE`, `MELEE_COWARD`)? → **`MELEE | RANGED | BOSS`** for v1, matching CLAUDE.md's Key Domain Concepts verbatim. Granular variants (`MELEE_COWARD`, etc.) are cheap to add in v2 — nothing else in the domain pattern-matches on the enum yet.
 
 ### Item + ItemType (task 1.4)
 - [ ] Which item types ship in v1? (potions, weapons, armor, scrolls, gold, keys?)
