@@ -5,7 +5,7 @@ description = "Browser-based turn-based dungeon crawler with a global leaderboar
 requires-python = ">=3.12"
 dependencies = [
     "pydantic>=2",
-    "pydantic-settings>=2",
+    "pydantic-settings>=2.14.0",
     "structlog>=24",
 ]
 
