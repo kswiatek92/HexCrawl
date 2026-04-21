@@ -8,9 +8,9 @@ class ItemType(StrEnum):
 
     ``StrEnum`` (Python 3.11+) mirrors ``BehaviourType``: str inheritance
     means variants serialise cleanly as JSON over the WebSocket turn loop
-    and compare equal to their wire-format literals. Each variant maps to
-    an existing Player slot — ``WEAPON`` / ``ARMOR`` / ``SHIELD`` to the
-    dedicated equipment slots, and ``POTION`` / ``KEY`` to the shared
+    and compare equal to their wire-format literals. Each variant is
+    planned to map to a Player slot — ``WEAPON`` / ``ARMOR`` / ``SHIELD``
+    to dedicated equipment slots, and ``POTION`` / ``KEY`` to the shared
     consumables stack (cap 5, enforced by pickup logic, not here).
     Scrolls and gold are deferred to v2.
     """
