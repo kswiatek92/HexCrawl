@@ -93,6 +93,8 @@ gh pr view --json number,url,state,isDraft,reviewRequests
 
 ### Step 5: Add Copilot to an existing PR (or a just-created one that couldn't receive `--reviewer` inline)
 
+**Note (observed in this repo):** both `gh pr create --reviewer Copilot` and `gh pr edit --add-reviewer Copilot` fail here with GraphQL "user not found" errors for the Copilot bot login. Only the REST API path below succeeds. If you're running this skill on `kswiatek92/HexCrawl`, you can skip straight to the API call.
+
 Try the `gh` native path first:
 
 ```

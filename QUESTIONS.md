@@ -31,9 +31,9 @@ Rules:
 - [x] Item multiplier for scoring — per-type weight, per-rarity, or per-item value? → **Per-type weight.** Static `ItemType → float` map owned by `ScoreService` (exact values TBD during task 1.7). Rarity / per-item overrides can layer in later without breaking the contract.
 
 ### Floor (task 1.5)
-- [ ] Grid dimensions — fixed (e.g. 80×50) or scales with floor index?
-- [ ] One down-staircase per floor, or multiple branches?
-- [ ] Do items and enemies live on the `Floor` or in separate collections keyed by position?
+- [x] Grid dimensions — fixed (e.g. 80×50) or scales with floor index? → **`80×50` fixed for v1.** Classic roguelike standard (Rogue, NetHack); enough room for 6–10 BSP rooms. May scale with floor index later — revisit once `DungeonGenerator` exists.
+- [x] One down-staircase per floor, or multiple branches? → **One down-staircase per floor.** Linear descent for v1; branching deferred.
+- [x] Do items and enemies live on the `Floor` or in separate collections keyed by position? → **Mixed, deliberately**: `enemies: list[Enemy]` (quiz-aligned — `Enemy.position` is intrinsic, so no key needed; ~5–20 enemies per floor makes O(n) lookup a non-issue for v1) and `items: dict[tuple[int, int], list[Item]]` (necessary — `Item` has no intrinsic position, so the dict key is canonical; list value supports stacking). Reverses the earlier dict-for-both answer after the [QUIZZES.md Q4 design intent](QUIZZES.md#L60) was surfaced. Worth a `DECISIONS.md` entry once `GameService` starts moving items between `Floor.items` and `Player`'s slots — that's where the asymmetry will bite.
 
 ### Dungeon (task 1.6)
 - [ ] Total depth — fixed (e.g. 20 floors) or endless?
@@ -46,7 +46,7 @@ Rules:
 - [ ] Minimum floor for a score to count at all?
 
 ### TileType (task 1.8)
-- [ ] Tiles beyond `WALL | FLOOR | STAIRS | DOOR`? (trap, water, chest, altar?)
+- [x] Tiles beyond `WALL | FLOOR | STAIRS | DOOR`? (trap, water, chest, altar?) → **No additional tiles for v1.** Ship `WALL | FLOOR | STAIRS | DOOR` only — matches CLAUDE.md "Key Domain Concepts". `StrEnum` makes future variants (`TRAP`, `WATER`, `CHEST`, `ALTAR`) additive without breaking existing pattern matches.
 
 ### Action (task 1.9)
 - [ ] Actions beyond Move/Attack/UseItem/Descend/Abandon? Likely candidates: `Wait`, `PickUp`, `DropItem`, `Open` (door), `Equip`.
