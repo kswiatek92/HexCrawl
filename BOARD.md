@@ -25,8 +25,8 @@ Assignees: `K` = Krzysztof · `?` = unassigned / open for collaborator
 | 1.1 | Set up repo structure | ✅ | 🏆 | K | Match layout in CLAUDE.md |
 | 1.2 | `Player` dataclass | 🔄 in progress | 🏆 | K | |
 | 1.3 | `Enemy` dataclass + `BehaviourType` enum | ✅ | 🏆 | K | |
-| 1.4 | `Item` dataclass + `ItemType` enum | ✅ | 🔁 | K | |
-| 1.5 | `Floor` model | ✅ | ⬜ | K | tile grid, enemies, items, stairs pos |
+| 1.4 | `Item` dataclass + `ItemType` enum | ✅ | 🏆 | K | |
+| 1.5 | `Floor` model | ✅ | 🏆 | K | tile grid, enemies, items, stairs pos |
 | 1.6 | `Dungeon` model | 🔲 | ⬜ | K | floors, current idx, seed, player ref |
 | 1.7 | `Score` dataclass + scoring formula | 🔲 | ⬜ | K | floors × kills × item multiplier |
 | 1.8 | `TileType` enum | ✅ | ⬜ | K | wall, floor, stairs, door (shipped with 1.5) |
