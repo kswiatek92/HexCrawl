@@ -66,7 +66,7 @@ a full profile assessment: overall score, strong areas, weak spots, and specific
 
 1. `Dungeon` has a `seed: int`. Why store the seed rather than the pre-generated floors? What does this allow?
 2. What is the difference between `current_floor_index` and a reference to the current `Floor` object? Which approach did you use and why?
-3. `Dungeon` contains a `Player`. Does this mean `Player` is a child of `Dungeon` in the domain sense? What are the implications for serialisation?
+3. `Player` is passed separately to services rather than stored as a field on `Dungeon`. What does this separation gain you over a `player: Player` field, and what are the implications for serialisation when saving a run?
 4. A `Dungeon` is a "run" — it starts, is played, and ends. Should it have a `status` field (`IN_PROGRESS`, `COMPLETED`, `ABANDONED`)? What behaviour does this enable?
 5. If two players could share a dungeon (co-op), what would need to change in the `Dungeon` model?
 

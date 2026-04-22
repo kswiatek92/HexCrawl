@@ -36,9 +36,9 @@ Rules:
 - [x] Do items and enemies live on the `Floor` or in separate collections keyed by position? → **Mixed, deliberately**: `enemies: list[Enemy]` (quiz-aligned — `Enemy.position` is intrinsic, so no key needed; ~5–20 enemies per floor makes O(n) lookup a non-issue for v1) and `items: dict[tuple[int, int], list[Item]]` (necessary — `Item` has no intrinsic position, so the dict key is canonical; list value supports stacking). Reverses the earlier dict-for-both answer after the [QUIZZES.md Q4 design intent](QUIZZES.md#L60) was surfaced. Worth a `DECISIONS.md` entry once `GameService` starts moving items between `Floor.items` and `Player`'s slots — that's where the asymmetry will bite.
 
 ### Dungeon (task 1.6)
-- [ ] Total depth — fixed (e.g. 20 floors) or endless?
-- [ ] Seed source — client-provided, server-random, or both (daily seed mode)?
-- [ ] Is the player ref stored on `Dungeon` or passed separately to services?
+- [x] Total depth — fixed (e.g. 20 floors) or endless? → **100 floors, fixed** for v1. Finite depth gives a concrete "win" state and caps run length for leaderboard fairness; endless mode deferred.
+- [x] Seed source — client-provided, server-random, or both (daily seed mode)? → **Both.** Server-random for normal runs (fresh seed per `StartGame`); client-provided for daily/weekly leaderboard modes where every player gets the same static seed for fair comparison. The `seed: int` field stays the same shape — only the caller picks.
+- [x] Is the player ref stored on `Dungeon` or passed separately to services? → **Passed separately** (Option B). `Dungeon` holds `dungeon_id`, `seed`, `floors`, `current_floor_index` — no `player` field. Services take both: `process_turn(dungeon, player, action)`. Accepted trade-off: more plumbing per signature now, but Player stays "who the user is" (future profile/unlocks persistent across runs) while Dungeon stays "this specific run" — co-op in v2 is additive, not a refactor. **Note:** this deviates from the [QUIZZES.md Task 1.6 Q3](QUIZZES.md#L69) hint ("Dungeon contains a Player") — the quiz wording may need updating, or the Q3 answer will accept that v1 chose the non-hinted shape deliberately.
 
 ### Score (task 1.7)
 - [ ] Exact formula — literally `floors × kills × item_multiplier`, or weighted (e.g. `floors² × kills × item_multiplier`)?
