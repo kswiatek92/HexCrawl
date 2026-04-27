@@ -12,6 +12,108 @@ Entries are append-only. If a decision is reversed, add a new entry that superse
 
 ---
 
+## 0002 — `Score` formula and frozen dataclass
+
+**Date:** 2026-04-27
+**Status:** Accepted
+**Scope:** `src/domain/models/score.py` (`Score`, `compute_score_value`,
+`DAMAGE_PENALTY_WEIGHT`); also fixes the conventions for any future
+`ScoreService.compute()` (task 1.18) and `SubmitScore` (task 3.3) work.
+
+### Context
+
+`QUESTIONS.md` Task 1.7 had pinned the high-level scoring direction —
+weighted-on-floors formula, damage-taken penalty only, ≥ 5 kills threshold
+enforced *outside* `ScoreService` — but explicitly deferred three tactical
+choices to "during 1.7 / 1.18 implementation":
+
+1. Exact exponent on the floors term (`floors_reached²` was suggested but
+   not locked).
+2. Exact damage-penalty math (subtractive vs multiplicative falloff).
+3. Whether `Score` should be mutable like the other domain models or
+   frozen as a snapshot.
+
+These pin down the wire shape of every leaderboard entry the project will
+ever produce, so they need a durable home.
+
+### Decision
+
+1. **Formula:**
+
+   ```
+   value = max(0, floors_reached**2 * kills * item_multiplier
+                  - damage_taken * DAMAGE_PENALTY_WEIGHT)
+   ```
+
+   `DAMAGE_PENALTY_WEIGHT = 1` for v1. Float intermediate is truncated to
+   `int` at return so the leaderboard sorts on a stable integer type.
+2. **Damage penalty: subtractive**, not multiplicative. The `max(0, ...)`
+   clamp also serves as the zero-score guard QUIZZES.md Task 1.7 Q1 calls
+   out (multiplicative-zero on any axis already yields 0; the clamp covers
+   the negative case).
+3. **`Score` is `@dataclass(frozen=True)`** — first frozen dataclass in
+   the codebase. A score is computed once at game over and never mutated;
+   freezing turns the snapshot semantic into a runtime guarantee.
+4. **Formula lives as a module-level pure function** (`compute_score_value`)
+   next to the dataclass — *not* a `Score` method, *not* on `ScoreService`.
+   1.18's `ScoreService.compute()` will compose primitive extraction
+   (Dungeon + Player → primitives) with this function.
+
+### Alternatives considered
+
+- **Linear floors term** (`floors_reached × kills × item_multiplier`).
+  Rejected: gives no incentive to descend over grinding floor 1.
+- **Higher exponent** (`floors_reached³` / exponential). Rejected: floor
+  100 would dominate so hard that the rest of the formula barely matters,
+  killing the multiplier and kill-count signals.
+- **Multiplicative damage falloff**
+  (`base × max(0, 1 - damage_taken / baseline_hp)`). Rejected: needs a
+  baseline-HP constant that doesn't generalise across enemy/floor scaling,
+  and creates large swings (one tank hit can ~halve a long run's score).
+  Subtractive is predictable and tunable via a single weight constant.
+- **Skip damage penalty entirely in 1.7, add in 1.18.** Rejected:
+  `damage_taken` already lives on `Score` (one of the four input fields);
+  having `compute_score_value` ignore one of its parameters in v1 would
+  invite drift between the dataclass shape and the formula.
+- **Score as a method on the dataclass** (`Score.from_run(...)`).
+  Rejected: pulls the formula off the pure-function path and complicates
+  testing in 1.19. A free function tests in isolation.
+- **Mutable `Score`.** Rejected: there is no use case where a finalised
+  score should change. Mutability would also weaken the "pure function"
+  contract QUIZZES Task 1.7 Q3 hinges on.
+
+### Consequences
+
+**Gains:**
+- Predictable score progression: doubling floors quadruples the score
+  ceiling at fixed kills+multiplier — clear depth incentive.
+- Anti-cheat is easier with subtractive math: per-axis caps in
+  `ScoreService` (1.18) compose linearly with the formula.
+- Frozen `Score` means `cache.set(score)` and DB writes can't be
+  silently corrupted by a stray reassignment downstream.
+- The pure free function is the entire formula — 1.18's `ScoreService`
+  reduces to "extract primitives, call the function, build a `Score`".
+
+**Costs:**
+- Tuning the formula now requires bumping the v1 constants and
+  invalidating leaderboards. The `DAMAGE_PENALTY_WEIGHT == 1` test lock
+  forces the change to be conscious.
+- Frozen dataclass means anywhere a `Score` needs to "update" (e.g.
+  recompute after a rule change) must build a new instance via
+  `dataclasses.replace`. Tolerable — recomputes are rare and async.
+- `int(base - penalty)` truncates toward zero, so `1.99` → `1`. Documented
+  in the function docstring; matters at the boundary between micro-scores
+  but not at leaderboard scale.
+
+### References
+
+- [score.py:1-93](src/domain/models/score.py) — canonical implementation.
+- [QUESTIONS.md task 1.7](QUESTIONS.md#L43-L46) — earlier tactical pins.
+- [QUIZZES.md task 1.7 Q1/Q3/Q4](QUIZZES.md#L75-L82) — design intent the
+  formula choices align with.
+
+---
+
 ## 0001 — Domain enums use `StrEnum` with `value == name`
 
 **Date:** 2026-04-22
