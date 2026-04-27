@@ -41,9 +41,9 @@ Rules:
 - [x] Is the player ref stored on `Dungeon` or passed separately to services? → **Passed separately** (Option B). `Dungeon` holds `dungeon_id`, `seed`, `floors`, `current_floor_index` — no `player` field. Services take both: `process_turn(dungeon, player, action)`. Accepted trade-off: more plumbing per signature now, but Player stays "who the user is" (future profile/unlocks persistent across runs) while Dungeon stays "this specific run" — co-op in v2 is additive, not a refactor. **Note:** this deviates from the [QUIZZES.md Task 1.6 Q3](QUIZZES.md#L69) hint ("Dungeon contains a Player") — the quiz wording may need updating, or the Q3 answer will accept that v1 chose the non-hinted shape deliberately.
 
 ### Score (task 1.7)
-- [ ] Exact formula — literally `floors × kills × item_multiplier`, or weighted (e.g. `floors² × kills × item_multiplier`)?
-- [ ] Penalties for damage taken, turns used, or deaths?
-- [ ] Minimum floor for a score to count at all?
+- [x] Exact formula — literally `floors × kills × item_multiplier`, or weighted (e.g. `floors² × kills × item_multiplier`)? → **Weighted on floors.** Depth dominates so descending is strictly better than grinding shallow floors. Exponent fixed at `floors_reached**2` (locked by ADR 0002 in `DECISIONS.md`).
+- [x] Penalties for damage taken, turns used, or deaths? → **Damage-taken penalty** only. Rewards careful play; discourages tank-and-grind. Requires a cumulative `damage_taken` counter on the run state (likely `Player` or `Dungeon` — exact home TBD during implementation). Turns-used penalty deferred; deaths is a no-op in v1 (permadeath = one death per run).
+- [x] Minimum floor for a score to count at all? → **Kill-based threshold** instead of floor-based: a run must have **≥ 5 kills** to qualify for the leaderboard (tentative — tune after playtesting). Measures actual engagement rather than just walking. Where the check lives is TBD: likely in `SubmitScore` (Phase 3) or the leaderboard query, not in `ScoreService.compute()` — keeps domain flexible.
 
 ### TileType (task 1.8)
 - [x] Tiles beyond `WALL | FLOOR | STAIRS | DOOR`? (trap, water, chest, altar?) → **No additional tiles for v1.** Ship `WALL | FLOOR | STAIRS | DOOR` only — matches CLAUDE.md "Key Domain Concepts". `StrEnum` makes future variants (`TRAP`, `WATER`, `CHEST`, `ALTAR`) additive without breaking existing pattern matches.
