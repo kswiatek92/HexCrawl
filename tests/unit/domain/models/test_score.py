@@ -100,7 +100,7 @@ def test_score_computed_at_is_passed_in() -> None:
     fixed = datetime(2025, 12, 31, 23, 59, 59, tzinfo=UTC)
     score = _make_score(computed_at=fixed)
 
-    assert score.computed_at is fixed
+    assert score.computed_at == fixed
 
 
 def test_compute_basic() -> None:
@@ -134,8 +134,9 @@ def test_compute_damage_penalty_clamped_to_zero() -> None:
 
 
 def test_compute_truncates_float_multiplier_to_int() -> None:
-    # 2² × 2 × 1.5 = 12.0, exact int. Locks the float→int return shape.
-    assert compute_score_value(floors_reached=2, kills=2, item_multiplier=1.5, damage_taken=0) == 12
+    # 2² × 2 × 1.6 = 12.8, truncated to 12. Locks the float→int return shape —
+    # if `int(...)` were removed from compute_score_value this would fail.
+    assert compute_score_value(floors_reached=2, kills=2, item_multiplier=1.6, damage_taken=0) == 12
 
 
 def test_compute_is_pure_repeatable_call() -> None:

@@ -107,7 +107,7 @@ ever produce, so they need a durable home.
 
 ### References
 
-- [score.py:1-93](src/domain/models/score.py) — canonical implementation.
+- [score.py](src/domain/models/score.py) — canonical implementation.
 - [QUESTIONS.md task 1.7](QUESTIONS.md#L43-L46) — earlier tactical pins.
 - [QUIZZES.md task 1.7 Q1/Q3/Q4](QUIZZES.md#L75-L82) — design intent the
   formula choices align with.
