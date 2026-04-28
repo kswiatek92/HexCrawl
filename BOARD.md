@@ -30,7 +30,7 @@ Assignees: `K` = Krzysztof · `?` = unassigned / open for collaborator
 | 1.6 | `Dungeon` model | ✅ | 🏆 | K | floors, current idx, seed (no player field — Option B) |
 | 1.7 | `Score` dataclass + scoring formula | ✅ | 🏆 | K | floors_reached² × kills × item multiplier, minus damage penalty |
 | 1.8 | `TileType` enum | ✅ | 🏆 | K | wall, floor, stairs, door (shipped with 1.5) |
-| 1.9 | `Action` type union | 🔲 | ⬜ | K | Move, Attack, UseItem, Descend, Abandon |
+| 1.9 | `Action` type union | 🔄 | ⬜ | K | Move, Attack, UseItem, Descend, Abandon |
 | 1.10 | `IGameRepository` Protocol | 🔲 | ⬜ | K | domain/ports/ |
 | 1.11 | `IScoreRepository` Protocol | 🔲 | ⬜ | K | domain/ports/ |
 | 1.12 | `ICachePort` Protocol | 🔲 | ⬜ | K | domain/ports/ |
