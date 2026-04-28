@@ -21,7 +21,6 @@ and is rename-safe.
 
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import TypeAlias
 from uuid import UUID
 
 
@@ -125,7 +124,7 @@ class Abandon:
     """
 
 
-Action: TypeAlias = Move | Attack | Wait | PickUp | UseItem | Open | Descend | Abandon
+type Action = Move | Attack | Wait | PickUp | UseItem | Open | Descend | Abandon
 """Discriminated union of every player-action variant.
 
 Use ``match`` to dispatch (PEP 634), e.g.::
