@@ -49,8 +49,8 @@ Rules:
 - [x] Tiles beyond `WALL | FLOOR | STAIRS | DOOR`? (trap, water, chest, altar?) → **No additional tiles for v1.** Ship `WALL | FLOOR | STAIRS | DOOR` only — matches CLAUDE.md "Key Domain Concepts". `StrEnum` makes future variants (`TRAP`, `WATER`, `CHEST`, `ALTAR`) additive without breaking existing pattern matches.
 
 ### Action (task 1.9)
-- [ ] Actions beyond Move/Attack/UseItem/Descend/Abandon? Likely candidates: `Wait`, `PickUp`, `DropItem`, `Open` (door), `Equip`.
-- [ ] Is `Attack` implicit on `Move into enemy tile`, or a separate explicit action?
+- [x] Actions beyond Move/Attack/UseItem/Descend/Abandon? Likely candidates: `Wait`, `PickUp`, `DropItem`, `Open` (door), `Equip`. → **Ship v1 with `Move | Attack | UseItem | Descend | Abandon | Wait | PickUp | Open`.** `Wait` (skip turn — needed in turn-based combat for regen/enemy-advance), `PickUp` (items live in `Floor.items` dict per the 1.5 decision; explicit pickup lets the player step over without auto-grabbing into a full slot), `Open` (closed `DOOR` blocks LOS per the 1.3 decision, so opening must be a discrete action). **Defer** `DropItem` (no general bag — slots auto-drop on replace per the 1.2 decision) and `Equip` (pickup goes straight into the slot, so no separate equip step in v1).
+- [x] Is `Attack` implicit on `Move into enemy tile`, or a separate explicit action? → **Implicit.** Moving into an enemy-occupied tile resolves as an attack; no separate `Attack` action variant needs a target field. Keeps the input surface minimal (movement keys do double duty) and matches classic roguelike feel (Rogue, NetHack, DCSS). The `Attack` variant still exists in the union for future ranged/targeted actions and for explicit attack-without-move (e.g. attacking a diagonal tile from a position where moving there is blocked).
 
 ### DungeonGenerator (task 1.13)
 - [ ] BSP parameters — min room size, max recursion depth, corridor style (L-shape / straight)?
