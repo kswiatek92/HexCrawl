@@ -75,6 +75,14 @@ class IGameRepository(Protocol):
     async def get(self, game_id: UUID) -> Dungeon | None:
         """Fetch the dungeon with ``game_id``, or ``None`` if missing.
 
+        ``game_id`` and ``Dungeon.dungeon_id`` are the same value. The
+        parameter is named ``game_id`` deliberately — it matches the
+        external vocabulary (``GET /game/{id}``, the ``StartGame`` use
+        case, ``QUIZZES.md`` task 1.10 Q4) that callers think in. The
+        dataclass field name ``dungeon_id`` is the internal-model
+        vocabulary. Same identifier, two names depending on which
+        side of the port you're on.
+
         A missing row is a normal outcome (the id was never persisted,
         or the run was hard-deleted by an admin path) and MUST NOT
         raise. Adapter-level errors propagate as exceptions.

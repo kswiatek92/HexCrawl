@@ -91,8 +91,15 @@ async def test_fake_save_returns_saved_dungeon() -> None:
 
     saved = await repo.save(dungeon)
 
-    assert saved is dungeon
-    assert await repo.get(dungeon.dungeon_id) is dungeon
+    # Field-equality, not ``is``: the port contract permits adapters to
+    # return a new Dungeon instance carrying refreshed server-owned
+    # fields. Asserting object identity would over-constrain valid
+    # adapter implementations.
+    assert saved.dungeon_id == dungeon.dungeon_id
+    assert saved == dungeon
+    retrieved = await repo.get(dungeon.dungeon_id)
+    assert retrieved is not None
+    assert retrieved.dungeon_id == dungeon.dungeon_id
 
 
 async def test_fake_get_missing_returns_none() -> None:
@@ -110,4 +117,10 @@ async def test_fake_save_is_idempotent_on_id() -> None:
     await repo.save(second)
 
     retrieved = await repo.get(did)
-    assert retrieved is second
+    # Behaviour-level assertion: the second save overwrote the first.
+    # We compare the discriminating field (seed) rather than asserting
+    # ``is second`` — the port permits adapters to return a fresh
+    # instance, so identity is not part of the contract.
+    assert retrieved is not None
+    assert retrieved.dungeon_id == did
+    assert retrieved.seed == second.seed
