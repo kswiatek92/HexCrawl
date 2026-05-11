@@ -804,3 +804,29 @@ a full profile assessment: overall score, strong areas, weak spots, and specific
 9. What is the difference between horizontal and vertical scaling? How does ECS Fargate auto-scaling implement horizontal scaling for the HexCrawl API?
 
 10. WebSocket connections drop when ECS scales in (removes a task). Describe this problem and two ways to mitigate it.
+
+---
+
+## Project-wide decisions quiz (10 questions, need 9/10)
+
+> Covers the late-Phase-1 BSP / AI design choices and the cross-cutting v1 trade-offs (logging, feature flags, CI gates, license) recorded in `QUESTIONS.md`. Take this once the corresponding tasks are implemented — you should be able to defend each call without looking at the answers.
+
+1. `DungeonGenerator` caps BSP recursion depth at 5, producing at most 32 leaf rooms on an 80×50 floor. Explain *both* failure modes: what goes wrong if you push recursion deeper (e.g. 8), and what goes wrong if you make it shallower (e.g. 2)?
+
+2. After the corridor pass, the generator runs a flood-fill from the spawn tile to verify every walkable tile is reachable. What category of bug is this check designed to catch, and why is the policy "regenerate with a bumped sub-seed on failure" preferable to "trust the algorithm" *or* to "patch the orphan room with a new corridor"?
+
+3. Enemy and item placement are deliberately split out of `DungeonGenerator` into a downstream `populate_floor(floor, depth, rng)` step. Name two distinct benefits this split provides — one related to testing, one related to balance tuning — and explain why both depend on the same RNG (or split sub-RNGs from the parent seed) being threaded through.
+
+4. The AI design rejects blind Manhattan pathing in favour of line-of-sight gating. What player-visible design problem does blind pathing create, and why is reusing "WALL and closed DOOR block LOS" (decided in task 1.3) for both ranged-attack targeting *and* AI awareness a desirable single-rule outcome rather than coincidence?
+
+5. HexCrawl uses **symmetric** shadowcasting for FOV. State precisely what the "symmetric" invariant means, and describe one concrete combat-fairness bug that asymmetric FOV (e.g. Bresenham raycasting) would produce.
+
+6. Enemy wake-up uses `chebyshev_distance(enemy, player) ≤ 8 AND has_los(enemy, player)`, and once an enemy is awoken it stays awoken for the rest of the floor. Justify each of the three design choices: (a) why AND rather than OR, (b) why 8 specifically, and (c) why sticky aggro rather than releasing on LOS-break.
+
+7. HexCrawl logs structured JSON to stdout only — no direct application-level integration with CloudWatch / Loki / Datadog. Which twelve-factor principle does this implement, and walk through the concrete code-change cost of switching from CloudWatch to Loki under this approach versus under a "library calls the collector directly" approach.
+
+8. Feature flag systems (Unleash, GrowthBook, etc.) were considered and rejected for v1. Give the rejection reason in one sentence, then describe one concrete future scenario where reconsideration would be justified — and why the simplest reasonable response in that scenario is *not* a SaaS flag service.
+
+9. The `import-linter` CI gate is deliberately scheduled to land at the Phase 1 → Phase 2 boundary, not earlier and not later. What hexagonal-architecture risk *first appears* in Phase 2 (and why couldn't it appear in Phase 1)? What concrete cost do you pay by retrofitting the gate after, say, Phase 3 is done?
+
+10. HexCrawl is MIT-licensed. Given the project framing in `CLAUDE.md` ("portfolio centrepiece… vehicle for learning"), what concrete value do you lose by choosing **Apache-2.0** instead, and what concrete value do you lose by choosing **proprietary**? Name one situation where the MIT default would be the wrong call.
