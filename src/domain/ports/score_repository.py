@@ -130,9 +130,7 @@ class IScoreRepository(Protocol):
         """
         ...
 
-    async def rank_of(
-        self, user_id: UUID, period: LeaderboardPeriod
-    ) -> int | None:
+    async def rank_of(self, user_id: UUID, period: LeaderboardPeriod) -> int | None:
         """Return ``user_id``'s 1-indexed position within ``period``.
 
         Computed against the same ordering as :meth:`top_n` — so a
