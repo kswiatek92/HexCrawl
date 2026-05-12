@@ -16,7 +16,7 @@ Design choices are pinned by ``QUIZZES.md`` task 1.11:
 
 * **Protocol over ABC** — same rationale as :mod:`game_repository`:
   adapters conform structurally, the dependency arrow stays
-  ``adapters → domain``, and test fakes need no inheritance.
+  ``adapters → ports``, and test fakes need no inheritance.
 * **`LeaderboardPeriod` enum, not `period: str`** (Q1) — strings have
   no static type-check coverage, allow typo-bound bugs
   (``"weekely"``) to ship, and break exhaustiveness on ``match``.
@@ -47,7 +47,7 @@ Design choices are pinned by ``QUIZZES.md`` task 1.11:
   row shape across the port would push validation into every caller
   and re-introduce the framework dependency the hexagonal layout
   exists to prevent.
-* **Both methods async** — adapters use ``asyncpg`` / SQLAlchemy
+* **All methods async** — adapters use ``asyncpg`` / SQLAlchemy
   async per CLAUDE.md → "Code conventions — Async all the way
   down".
 * **No `runtime_checkable`** — the project type-checks statically
