@@ -32,7 +32,7 @@ Assignees: `K` = Krzysztof · `?` = unassigned / open for collaborator
 | 1.8 | `TileType` enum | ✅ | 🏆 | K | wall, floor, stairs, door (shipped with 1.5) |
 | 1.9 | `Action` type union | ✅ | 🏆 | K | Move, Attack, UseItem, Descend, Abandon, Wait, PickUp, Open — frozen dataclasses + Direction enum |
 | 1.10 | `IGameRepository` Protocol | ✅ | 🏆 | K | domain/ports/ |
-| 1.11 | `IScoreRepository` Protocol | 🔄 | ⬜ | K | domain/ports/ |
+| 1.11 | `IScoreRepository` Protocol | ✅ | ⬜ | K | domain/ports/ |
 | 1.12 | `ICachePort` Protocol | 🔲 | ⬜ | K | domain/ports/ |
 | 1.13 | `DungeonGenerator` — BSP algorithm | 🔲 | ⬜ | K | Pure function, seeded random |
 | 1.14 | Unit tests for `DungeonGenerator` | 🔲 | ⬜ | K | |
