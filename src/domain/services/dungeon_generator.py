@@ -56,9 +56,7 @@ MAX_REGEN_ATTEMPTS: Final[int] = 8
 
 _DEEP_SPLIT_PROBABILITY: Final[float] = 0.6
 _LONG_AXIS_BIAS: Final[float] = 0.8
-_WALKABLE: Final[frozenset[TileType]] = frozenset(
-    {TileType.FLOOR, TileType.STAIRS, TileType.DOOR}
-)
+_WALKABLE: Final[frozenset[TileType]] = frozenset({TileType.FLOOR, TileType.STAIRS, TileType.DOOR})
 _NEIGHBOUR_OFFSETS: Final[tuple[tuple[int, int], ...]] = (
     (1, 0),
     (-1, 0),
@@ -128,9 +126,7 @@ def generate(
             max_depth=max_depth,
             min_room_size=min_room_size,
         )
-        tiles: list[list[TileType]] = [
-            [TileType.WALL] * width for _ in range(height)
-        ]
+        tiles: list[list[TileType]] = [[TileType.WALL] * width for _ in range(height)]
         leaves = _collect_leaves(root)
         for leaf in leaves:
             _carve_room(tiles, leaf)
@@ -276,9 +272,7 @@ def _carve_room(tiles: list[list[TileType]], leaf: _BspNode) -> None:
             row[x] = TileType.FLOOR
 
 
-def _carve_corridors(
-    tiles: list[list[TileType]], node: _BspNode, rng: random.Random
-) -> None:
+def _carve_corridors(tiles: list[list[TileType]], node: _BspNode, rng: random.Random) -> None:
     """Post-order walk; carve an L-corridor at each internal node.
 
     For an internal node we pick a representative point in some room of
@@ -298,9 +292,7 @@ def _carve_corridors(
     _carve_l_corridor(tiles, left_point, right_point, rng)
 
 
-def _representative_point(
-    node: _BspNode, rng: random.Random
-) -> tuple[int, int]:
+def _representative_point(node: _BspNode, rng: random.Random) -> tuple[int, int]:
     """Pick a random tile inside some room reachable from ``node``.
 
     Recurses through internal nodes by random subtree choice. Because
@@ -310,9 +302,7 @@ def _representative_point(
         rx, ry, rw, rh = node.room
         return rng.randint(rx, rx + rw - 1), rng.randint(ry, ry + rh - 1)
     assert node.left is not None and node.right is not None
-    return _representative_point(
-        node.left if rng.random() < 0.5 else node.right, rng
-    )
+    return _representative_point(node.left if rng.random() < 0.5 else node.right, rng)
 
 
 def _carve_l_corridor(
@@ -338,26 +328,20 @@ def _carve_l_corridor(
         _carve_horizontal_segment(tiles, by, ax, bx)
 
 
-def _carve_horizontal_segment(
-    tiles: list[list[TileType]], y: int, x_a: int, x_b: int
-) -> None:
+def _carve_horizontal_segment(tiles: list[list[TileType]], y: int, x_a: int, x_b: int) -> None:
     """Set ``tiles[y][x]`` to FLOOR for x between ``x_a`` and ``x_b`` inclusive."""
     row = tiles[y]
     for x in range(min(x_a, x_b), max(x_a, x_b) + 1):
         row[x] = TileType.FLOOR
 
 
-def _carve_vertical_segment(
-    tiles: list[list[TileType]], x: int, y_a: int, y_b: int
-) -> None:
+def _carve_vertical_segment(tiles: list[list[TileType]], x: int, y_a: int, y_b: int) -> None:
     """Set ``tiles[y][x]`` to FLOOR for y between ``y_a`` and ``y_b`` inclusive."""
     for y in range(min(y_a, y_b), max(y_a, y_b) + 1):
         tiles[y][x] = TileType.FLOOR
 
 
-def _place_stairs(
-    tiles: list[list[TileType]], leaf: _BspNode
-) -> tuple[int, int]:
+def _place_stairs(tiles: list[list[TileType]], leaf: _BspNode) -> tuple[int, int]:
     """Place STAIRS at the centre of ``leaf``'s room; return its ``(x, y)``."""
     assert leaf.room is not None
     rx, ry, rw, rh = leaf.room
@@ -367,9 +351,7 @@ def _place_stairs(
     return sx, sy
 
 
-def _walkable_connected(
-    tiles: list[list[TileType]], width: int, height: int
-) -> bool:
+def _walkable_connected(tiles: list[list[TileType]], width: int, height: int) -> bool:
     """Return ``True`` iff every walkable tile is reachable from any other.
 
     Walkable means ``FLOOR``, ``STAIRS``, or ``DOOR`` (the v1 tile types
