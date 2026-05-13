@@ -12,6 +12,123 @@ Entries are append-only. If a decision is reversed, add a new entry that superse
 
 ---
 
+## 0003 — `asyncio` end-to-end in adapters and entrypoints; sync domain; CPU work to Celery
+
+**Date:** 2026-05-13
+**Status:** Accepted
+**Scope:** All of `src/adapters/` and `src/entrypoints/` (FastAPI routers, WebSocket
+handlers, SQLAlchemy/`asyncpg` repos, `redis.asyncio` cache). Domain (`src/domain/`)
+and most of `application/` stay synchronous. Heavy CPU work is delegated to Celery
+(`src/adapters/tasks/`) rather than awaited on the event loop.
+
+### Context
+
+HexCrawl's defining workload is the **WebSocket turn loop** (`/ws/game/{session_id}`):
+many long-lived connections, each mostly idle waiting for the player's next action,
+each turn touching Redis (active state) and occasionally Postgres (checkpoint /
+game-over). The leaderboard and REST surface are also I/O-bound network calls.
+
+The naive "async makes Python fast" framing is wrong and worth pinning down before
+the project grows: async helps when work is **waiting on I/O**, not when it's
+**burning CPU**. HexCrawl has both — turn resolution and BSP map generation are
+CPU-bound — so the model needs to be explicit about where async lives and where it
+doesn't, otherwise the boundary will rot the first time someone slaps `async def`
+on a pure function "for consistency."
+
+This is also a hexagonal-boundary concern: if the domain becomes `async`,
+domain tests need an event loop, and the framework-agnostic property the project is
+built around weakens.
+
+### Decision
+
+1. **Adapters and entrypoints are async all the way down.**
+   - FastAPI routers use `async def`.
+   - DB access via SQLAlchemy 2.x async engine + `asyncpg`.
+   - Cache access via `redis.asyncio`.
+   - WebSocket handlers `await` per-message; one event loop holds N sessions.
+2. **Domain stays synchronous.** `src/domain/services/` and `src/domain/models/`
+   are plain sync functions and dataclasses. No `async def`, no `await`, no
+   `asyncio` import. This is enforced socially via review and `/audit`.
+3. **Application use cases are async only where they fan out to async ports.**
+   A use case that calls `await cache.get(...)` is `async def`; one that only
+   composes domain services stays sync. No blanket "everything async."
+4. **CPU-bound work goes to Celery, not the event loop.**
+   - Deep-floor BSP generation → `map_generation` task.
+   - Score recalculation → `score_recalc` task.
+   - Weekly leaderboard reset → Celery Beat.
+   Shallow per-turn CPU (enemy AI, action resolution) runs inline because it's
+   fast enough that yielding would cost more than it saves; if profiling ever
+   shows a turn blocking the loop > ~5 ms, that becomes a Celery candidate too.
+5. **No `asyncio.run()` inside request handlers, no `run_in_executor` shortcuts
+   in the domain.** If something needs to escape the loop, it goes to Celery.
+
+### Alternatives considered
+
+- **Sync FastAPI + threadpool everywhere.** FastAPI supports `def` routes via a
+  threadpool, and SQLAlchemy has a mature sync API. Rejected: WebSocket fan-out
+  is the killer use case, and ~8 MB of stack per idle player doesn't scale to the
+  "thousands of concurrent sessions" the portfolio story rests on. Threads also
+  make the WebSocket lifecycle (cancellation, broadcast) much harder than
+  `asyncio.TaskGroup`.
+- **Async everywhere, domain included.** Rejected: it would force every domain
+  unit test through `pytest-asyncio` for no I/O reason, colour pure functions,
+  and weaken the hexagonal boundary (an `async def` domain method effectively
+  imports the asyncio runtime as a dependency). Domain tests should stay
+  instant and framework-free.
+- **Trio / AnyIO as the runtime.** Rejected for now: ecosystem mismatch
+  (`asyncpg`, `redis.asyncio`, Celery, FastAPI all assume asyncio); the
+  structured-concurrency wins from Trio are partly available via
+  `asyncio.TaskGroup` in 3.11+. Worth revisiting only if cancellation
+  semantics around WebSockets become painful.
+- **Run BSP / score recalc inline with `asyncio.to_thread`.** Rejected as the
+  default: it sidesteps the event loop block but still consumes a worker
+  process's threadpool slot and gives no retry / scheduling / visibility.
+  Celery gives durable queues, retries, and Beat scheduling — which the project
+  needs anyway for the weekly leaderboard.
+- **Skip Celery, do everything inline.** Rejected: weekly leaderboard reset and
+  async score recalc are explicit features in CLAUDE.md, and the portfolio
+  value of demonstrating a worker tier is real.
+
+### Consequences
+
+**Gains:**
+- One process can hold thousands of idle WebSocket sessions; per-coroutine
+  memory is ~KB instead of ~MB per thread.
+- Per-turn Redis + Postgres I/O overlaps cleanly; no thread-pool tuning.
+- Domain stays instant-to-test and framework-free — the hexagonal boundary
+  is reinforced by the sync/async split, not just by import discipline.
+- Celery handoff is the obvious place for CPU work, retries, and scheduling;
+  the boundary is easy to explain in the portfolio writeup.
+
+**Costs:**
+- **Function colouring.** Sync domain code can't directly call async ports; the
+  application layer is the only place the two worlds meet. Mostly a feature
+  (it forces the use-case boundary to be explicit) but occasionally awkward.
+- **Async debugging is harder.** Stack traces span tasks; deadlocks from
+  forgotten `await` or blocking calls inside `async def` are easy to write and
+  hard to spot. Mitigation: lint for blocking I/O in async contexts; never call
+  sync DB/Redis clients from `async def`.
+- **CPU-on-loop hazard.** A long-running sync call inside an `async def`
+  silently freezes every other session on that worker. The "shallow CPU stays
+  inline, deep CPU goes to Celery" rule depends on profiling, not vibes —
+  needs a budget (~5 ms per turn) once we can measure.
+- **Test ergonomics split.** Adapter and entrypoint tests need
+  `pytest-asyncio`; domain tests don't. Acceptable, but new contributors will
+  hit the seam.
+- **Two runtimes to operate** (uvicorn + Celery worker + Beat). Already in
+  the local-dev setup, but it's three terminals instead of one.
+
+### References
+
+- [CLAUDE.md — "Async all the way down" rule](CLAUDE.md) — the conventions
+  section this entry pins down precisely.
+- [SQLAlchemy async ORM](https://docs.sqlalchemy.org/en/20/orm/extensions/asyncio.html)
+- [`redis.asyncio`](https://redis.readthedocs.io/en/stable/examples/asyncio_examples.html)
+- [FastAPI WebSockets](https://fastapi.tiangolo.com/advanced/websockets/)
+- [Celery — Tasks](https://docs.celeryq.dev/en/stable/userguide/tasks.html)
+
+---
+
 ## 0002 — `Score` formula and frozen dataclass
 
 **Date:** 2026-04-27
