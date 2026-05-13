@@ -1,5 +1,11 @@
-"""BSP-based ``DungeonGenerator`` — a pure function from ``(seed, floor_index)``
-to a ``Floor`` of pure geometry.
+"""BSP-based ``DungeonGenerator`` — a function whose *geometry* output
+(``tiles`` and ``stairs_down``) is a pure deterministic function of
+``(seed, floor_index)`` plus the tunable knobs.
+
+The returned ``Floor`` also carries a ``floor_id``, which is a row
+identifier rather than geometry. When the caller omits ``floor_id`` the
+generator mints a fresh ``uuid4()`` for ergonomic test use; that one
+field is intentionally non-deterministic. Geometry never depends on it.
 
 The generator is the first occupant of ``src/domain/services/``. It is the
 counterpart, on the geometry side, of ``compute_score_value`` in
@@ -355,9 +361,11 @@ def _walkable_connected(tiles: list[list[TileType]], width: int, height: int) ->
     """Return ``True`` iff every walkable tile is reachable from any other.
 
     Walkable means ``FLOOR``, ``STAIRS``, or ``DOOR`` (the v1 tile types
-    that admit movement). We BFS from the first walkable tile we find
-    using 4-neighbour adjacency and check that the visited count equals
-    the total walkable count.
+    that admit movement). We flood-fill (stack-based DFS) from the first
+    walkable tile we find using 4-neighbour adjacency and check that the
+    visited count equals the total walkable count. DFS vs BFS doesn't
+    affect the result for a connectivity check, and a list-as-stack is
+    cheaper than ``collections.deque`` for this grid size.
     """
     start: tuple[int, int] | None = None
     total_walkable = 0
