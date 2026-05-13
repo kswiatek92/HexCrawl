@@ -18,7 +18,7 @@ Entries are append-only. If a decision is reversed, add a new entry that superse
 **Status:** Accepted
 **Scope:** All of `src/adapters/` and `src/entrypoints/` (FastAPI routers, WebSocket
 handlers, SQLAlchemy/`asyncpg` repos, `redis.asyncio` cache). Domain (`src/domain/`)
-and most of `application/` stay synchronous. Heavy CPU work is delegated to Celery
+and most of `src/application/` stay synchronous. Heavy CPU work is delegated to Celery
 (`src/adapters/tasks/`) rather than awaited on the event loop.
 
 ### Context
