@@ -94,10 +94,14 @@ def test_all_invariants_hold_for_arbitrary_seed_and_floor_index(
     for row in floor.tiles:
         assert len(row) == GRID_WIDTH
 
-    # Every cell is a valid TileType member
+    # Every cell is a valid TileType member.
+    # `isinstance` (not `tile in TileType`): on Python 3.12 a `StrEnum`'s
+    # `__contains__` returns True for raw values too, so `"FLOOR" in TileType`
+    # would pass and hide a regression where the generator emits strings
+    # instead of enum members. `isinstance` rejects raw strings cleanly.
     for row in floor.tiles:
         for tile in row:
-            assert tile in TileType
+            assert isinstance(tile, TileType)
 
     # Exactly one STAIRS, matching floor.stairs_down
     stairs_positions = [
