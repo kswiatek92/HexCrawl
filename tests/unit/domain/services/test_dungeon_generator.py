@@ -69,10 +69,15 @@ def test_grid_has_expected_default_dimensions() -> None:
 
 
 def test_all_tiles_are_valid_tile_type_members() -> None:
+    # `isinstance` (not `tile in TileType`): on Python 3.12 a `StrEnum`'s
+    # `__contains__` returns True for raw values too — `"FLOOR" in TileType`
+    # is True — which would hide a regression where the generator emits
+    # serialised strings instead of enum members. `isinstance` rejects
+    # raw strings, which is what the assertion is meant to enforce.
     floor = generate(seed=12345, floor_index=0)
     for row in floor.tiles:
         for tile in row:
-            assert tile in TileType
+            assert isinstance(tile, TileType)
 
 
 def test_exactly_one_stairs_tile_and_stairs_down_matches_its_position() -> None:
