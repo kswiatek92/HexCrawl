@@ -33,9 +33,9 @@ Assignees: `K` = Krzysztof · `?` = unassigned / open for collaborator
 | 1.9 | `Action` type union | ✅ | 🏆 | K | Move, Attack, UseItem, Descend, Abandon, Wait, PickUp, Open — frozen dataclasses + Direction enum |
 | 1.10 | `IGameRepository` Protocol | ✅ | 🏆 | K | domain/ports/ |
 | 1.11 | `IScoreRepository` Protocol | ✅ | 🏆 | K | domain/ports/ |
-| 1.12 | `ICachePort` Protocol | ✅ | ⬜ | K | domain/ports/ |
-| 1.13 | `DungeonGenerator` — BSP algorithm | ✅ | ⬜ | K | Pure function, seeded random |
-| 1.14 | Unit tests for `DungeonGenerator` | ✅ | ⬜ | K | |
+| 1.12 | `ICachePort` Protocol | ✅ | 🏆 | K | domain/ports/ |
+| 1.13 | `DungeonGenerator` — BSP algorithm | ✅ | 🏆 | K | Pure function, seeded random |
+| 1.14 | Unit tests for `DungeonGenerator` | ✅ | 🏆 | K | |
 | 1.15 | `EnemyAI` — melee pathfinding | 🔲 | ⬜ | K | Manhattan distance |
 | 1.16 | `GameService.process_turn()` | 🔲 | ⬜ | K | Core logic |
 | 1.17 | Unit tests for `GameService` | 🔲 | ⬜ | K | Use fake repos |
