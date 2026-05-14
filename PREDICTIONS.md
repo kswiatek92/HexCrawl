@@ -22,6 +22,16 @@ Newest first.
 
 ---
 
+## Task 1.14 — Unit tests for `DungeonGenerator`
+
+**Date:** 2026-05-14
+
+- **API shape:** Multiple files, with Hypothesis.
+- **Files that will change:** Domain and entrypoints.
+- **Trickiest part:** Deterministic dungeon generation.
+
+---
+
 ## Task 1.13 — `DungeonGenerator` — BSP algorithm
 
 **Date:** 2026-05-13
