@@ -18,10 +18,23 @@ from src.domain.models.leaderboard_period import LeaderboardPeriod
 from src.domain.models.player import Player
 from src.domain.models.score import DAMAGE_PENALTY_WEIGHT, Score, compute_score_value
 from src.domain.models.tile_type import TileType
+from src.domain.models.turn_event import (
+    ActionRejected,
+    EnemyAttacked,
+    EnemyKilled,
+    FloorDescended,
+    PlayerAttacked,
+    PlayerDamaged,
+    PlayerDied,
+    PlayerMoved,
+    RunAbandoned,
+    TurnEvent,
+)
 
 __all__ = [
     "Abandon",
     "Action",
+    "ActionRejected",
     "Attack",
     "BehaviourType",
     "DAMAGE_PENALTY_WEIGHT",
@@ -29,7 +42,10 @@ __all__ = [
     "Direction",
     "Dungeon",
     "Enemy",
+    "EnemyAttacked",
+    "EnemyKilled",
     "Floor",
+    "FloorDescended",
     "GRID_HEIGHT",
     "GRID_WIDTH",
     "Item",
@@ -39,9 +55,15 @@ __all__ = [
     "Open",
     "PickUp",
     "Player",
+    "PlayerAttacked",
+    "PlayerDamaged",
+    "PlayerDied",
+    "PlayerMoved",
+    "RunAbandoned",
     "Score",
     "TOTAL_FLOORS",
     "TileType",
+    "TurnEvent",
     "UseItem",
     "Wait",
     "compute_score_value",
