@@ -24,6 +24,12 @@ class Enemy:
     Mutable by design — HP and position change every turn. Stat values are
     set by spawn logic (per floor × behaviour); no v1 defaults here, since
     they would be misleading for the `BOSS` variant.
+
+    ``awake`` is the sticky-aggro flag consumed by ``enemy_ai.decide_action``:
+    once set it stays set until the enemy is destroyed or the floor is
+    abandoned. Storing it on the enemy itself (rather than a side
+    ``set[UUID]``) keeps the per-floor reset automatic — descending spawns
+    fresh enemies with ``awake=False`` — and removes a serialisation seam.
     """
 
     enemy_id: UUID
@@ -34,3 +40,4 @@ class Enemy:
     max_hp: int
     attack: int
     defense: int
+    awake: bool = False
