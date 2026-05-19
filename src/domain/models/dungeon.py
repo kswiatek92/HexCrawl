@@ -29,9 +29,18 @@ class Dungeon:
     player, action)``. This keeps ``Player`` as "who the user is"
     (identity, future profile) and ``Dungeon`` as "this specific run",
     and makes v2 co-op additive rather than a refactor.
+
+    ``turn_count`` is the monotonically-increasing count of turns
+    processed in this run. ``GameService.process_turn`` derives a
+    per-turn ``random.Random(f"{seed}|{current_floor_index}|{turn_count}")``
+    from it (mirror of ``DungeonGenerator``'s seed pattern), then
+    increments at the end of the turn. Recording the counter as a field
+    rather than a service-local variable keeps the run replayable from
+    ``(seed, action log)`` alone — no RNG state to serialise.
     """
 
     dungeon_id: UUID
     seed: int
     floors: list[Floor]
     current_floor_index: int
+    turn_count: int = 0

@@ -78,4 +78,13 @@ def test_player_exposes_expected_fields() -> None:
         "max_hp",
         "attack",
         "defense",
+        "damage_taken",
     }
+
+
+def test_player_damage_taken_defaults_to_zero() -> None:
+    # ScoreService.compute reads damage_taken at run end; a non-zero
+    # default would pre-penalise every run before the first hit landed.
+    player = _make_player()
+
+    assert player.damage_taken == 0

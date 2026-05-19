@@ -66,7 +66,17 @@ def test_dungeon_exposes_expected_fields() -> None:
         "seed",
         "floors",
         "current_floor_index",
+        "turn_count",
     }
+
+
+def test_dungeon_turn_count_defaults_to_zero() -> None:
+    # The per-turn RNG in process_turn is derived from this counter, so
+    # a fresh dungeon must start at 0 — otherwise the first turn would
+    # use a stale seed slice.
+    dungeon = _make_dungeon()
+
+    assert dungeon.turn_count == 0
 
 
 def test_dungeon_is_mutable() -> None:

@@ -79,7 +79,17 @@ def test_enemy_exposes_expected_fields() -> None:
         "max_hp",
         "attack",
         "defense",
+        "awake",
     }
+
+
+def test_enemy_awake_defaults_to_false() -> None:
+    # Sticky-aggro contract: every spawned enemy starts unaware until the
+    # AI wake predicate fires; default-True would let enemies see through
+    # walls on turn 1.
+    enemy = _make_enemy()
+
+    assert enemy.awake is False
 
 
 @pytest.mark.parametrize("behaviour", list(BehaviourType))
