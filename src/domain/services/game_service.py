@@ -210,9 +210,20 @@ def _player_attack(
     rng: random.Random,
     result: TurnResult,
 ) -> None:
-    """Resolve explicit ``Attack(direction)``: must target an enemy."""
+    """Resolve explicit ``Attack(direction)``: must target an enemy.
+
+    Validates the target tile against the same OOB / wall / door rules
+    as ``Move`` first, so the rejection reason matches the actual
+    failure mode — attacking into a wall surfaces ``blocked_by_wall``,
+    not the misleading ``nothing_to_attack``. Only an in-bounds,
+    non-blocking tile that holds no enemy yields ``nothing_to_attack``.
+    """
     dx, dy = _DIRECTION_OFFSETS[direction]
     target = (player.position[0] + dx, player.position[1] + dy)
+    rejection = _rejection_for_target(floor, target, allow_enemy=True)
+    if rejection is not None:
+        result.events.append(rejection)
+        return
     enemy = _enemy_at(floor, target)
     if enemy is None:
         result.events.append(ActionRejected(reason="nothing_to_attack"))
@@ -300,10 +311,13 @@ def _apply_enemy_action(
 ) -> None:
     """Apply one enemy's chosen action to the world.
 
-    Enemy AI emits ``Move`` and ``Wait`` only (today); other variants
-    are *possible* through the union but the AI does not produce them,
-    so a defensive ``ActionRejected`` covers the should-never-happen
-    case without crashing the turn loop.
+    Enemy AI emits ``Move`` and ``Wait`` only (today). The catch-all arm
+    for the other ``Action`` variants is deliberately a silent no-op:
+    an enemy-side AI bug should not surface as a client-visible
+    ``ActionRejected`` event (the player's action wasn't rejected, the
+    AI just misbehaved), and raising would kill the WebSocket session
+    over a recoverable issue. The exhaustive match keeps mypy-strict
+    happy without any visible domain artefact.
     """
     match action:
         case Move(direction=d):

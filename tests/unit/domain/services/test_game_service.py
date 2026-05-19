@@ -228,6 +228,31 @@ def test_explicit_attack_on_enemy_deals_damage_without_moving() -> None:
     assert any(isinstance(e, PlayerAttacked) for e in result.events)
 
 
+def test_explicit_attack_into_wall_yields_blocked_by_wall_not_nothing_to_attack() -> None:
+    # Rejection reason must reflect the actual failure mode — attacking
+    # into a wall is "blocked_by_wall", not the misleading
+    # "nothing_to_attack" reserved for empty in-bounds tiles.
+    floor = _floor_from_grid(["#..", "...", "..."])
+    dungeon = _dungeon([floor])
+    player = _player((0, 1))
+
+    result = process_turn(dungeon, player, Attack(direction=Direction.NORTH))
+
+    assert ActionRejected(reason="blocked_by_wall") in result.events
+    assert ActionRejected(reason="nothing_to_attack") not in result.events
+
+
+def test_explicit_attack_out_of_bounds_yields_out_of_bounds() -> None:
+    floor = _floor_from_grid(["..."])
+    dungeon = _dungeon([floor])
+    player = _player((0, 0))
+
+    result = process_turn(dungeon, player, Attack(direction=Direction.WEST))
+
+    assert ActionRejected(reason="out_of_bounds") in result.events
+    assert ActionRejected(reason="nothing_to_attack") not in result.events
+
+
 # --- Wait ------------------------------------------------------------------
 
 
@@ -431,26 +456,25 @@ def test_enemy_attack_increments_player_damage_taken() -> None:
 
 
 def test_enemies_act_in_enemy_id_sort_order_not_list_order() -> None:
-    # The list order is descending id; emitted events must be in
-    # ascending id order, so insertion-order in the list does not
-    # influence the per-turn narrative.
-    floor = _floor_from_grid([".....", ".....", "....."])
+    # Place both enemies *adjacent* to the player so each one's AI
+    # produces an EnemyAttacked event this turn — that gives an
+    # unconditional observable to assert ordering against. Insertion
+    # order in floor.enemies is id-DESCENDING; the emitted events must
+    # be in ascending id order, proving sort-by-id (not list-position)
+    # is the contract.
+    floor = _floor_from_grid(["..."])
     later_id = _stable_id(2)
     earlier_id = _stable_id(1)
-    e_later = _enemy((3, 0), attack=2, awake=True, enemy_id=later_id)
-    e_earlier = _enemy((3, 2), attack=2, awake=True, enemy_id=earlier_id)
-    # Append in id-DESCENDING order to make the test meaningful.
+    e_later = _enemy((2, 0), attack=2, awake=True, enemy_id=later_id)
+    e_earlier = _enemy((0, 0), attack=2, awake=True, enemy_id=earlier_id)
     floor.enemies.extend([e_later, e_earlier])
     dungeon = _dungeon([floor])
-    player = _player((0, 1))
+    player = _player((1, 0), hp=100)  # high HP so neither hit ends the turn
 
     result = process_turn(dungeon, player, Wait())
 
-    # The first EnemyAttacked / step from this turn must come from the
-    # earlier id — that is the contract.
     enemy_event_ids = [e.enemy_id for e in result.events if isinstance(e, EnemyAttacked)]
-    if enemy_event_ids:
-        assert enemy_event_ids[0] == earlier_id
+    assert enemy_event_ids == [earlier_id, later_id]
 
 
 # --- RNG / determinism -----------------------------------------------------
