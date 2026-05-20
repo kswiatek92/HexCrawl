@@ -36,7 +36,7 @@ from src.domain.models import (
     UseItem,
     Wait,
 )
-from src.domain.services import process_turn
+from src.domain.services import TurnResult, process_turn
 
 # --- Test fixture helpers --------------------------------------------------
 
@@ -574,3 +574,85 @@ def test_rejected_action_does_not_increment_damage_taken_or_change_position() ->
 
     assert player.position == (0, 1)
     assert player.damage_taken == 0
+
+
+# --- Enemy AI apply-time guards --------------------------------------------
+
+
+def test_enemy_cannot_move_onto_another_enemys_tile() -> None:
+    # Two awake melee enemies in a row, player further down the line.
+    # The back enemy's A* doesn't treat peer enemies as obstacles, so it
+    # will plan a step onto the front enemy's tile; the apply-time guard
+    # in _enemy_step_or_attack must degrade that to a no-op rather than
+    # forcing two enemies onto one square.
+    floor = _floor_from_grid(["....."])
+    back = _enemy((0, 0), awake=True, enemy_id=_stable_id(1))
+    front = _enemy((1, 0), awake=True, enemy_id=_stable_id(2))
+    floor.enemies.extend([back, front])
+    dungeon = _dungeon([floor])
+    player = _player((4, 0), hp=100)
+
+    process_turn(dungeon, player, Wait())
+
+    assert back.position == (0, 0)  # collision-rejected; back enemy stays put
+    assert front.position != (1, 0)  # front enemy still acted (moved closer)
+
+
+# --- Sticky aggro across turns ---------------------------------------------
+
+
+def test_awoken_enemy_stays_awake_after_player_breaks_los() -> None:
+    # QUESTIONS.md task 1.15: once an enemy wakes, it stays awake for the
+    # rest of the floor — releasing aggro on LOS-break would oscillate at
+    # the boundary and forgive sloppy play.
+    floor = _floor_from_grid(["." * 20])
+    enemy = _enemy((5, 0), enemy_id=_stable_id(1))
+    floor.enemies.append(enemy)
+    dungeon = _dungeon([floor])
+    player = _player((0, 0), hp=100)
+
+    process_turn(dungeon, player, Wait())
+    assert enemy.awake is True  # turn 1 wakes it
+
+    # Teleport the player far away (Chebyshev 14 > WAKE_RADIUS=8).
+    # If aggro were released on out-of-range, the next wake check would
+    # flip enemy.awake back to False.
+    player.position = (19, 0)
+    process_turn(dungeon, player, Wait())
+
+    assert enemy.awake is True
+
+
+# --- Move-onto-stairs walkability ------------------------------------------
+
+
+def test_move_onto_stairs_tile_walks_normally() -> None:
+    # STAIRS is not in _MOVEMENT_BLOCKERS — moving onto it succeeds and
+    # the player must explicitly Descend on a later turn to change floor.
+    floor_a = _floor_from_grid(["..>"])
+    floor_b = _floor_from_grid(["..."])
+    dungeon = _dungeon([floor_a, floor_b])
+    player = _player((1, 0))
+
+    result = process_turn(dungeon, player, Move(direction=Direction.EAST))
+
+    assert player.position == (2, 0)
+    assert dungeon.current_floor_index == 0  # walking onto stairs ≠ descending
+    assert PlayerMoved(from_position=(1, 0), to_position=(2, 0)) in result.events
+
+
+# --- TurnResult dataclass --------------------------------------------------
+
+
+def test_turn_result_defaults_to_empty_event_list_and_no_game_over() -> None:
+    # Defensive check against an accidental mutable-default bug: if
+    # `events` ever becomes `events: list[TurnEvent] = []` (without
+    # field(default_factory=list)), all TurnResult instances would share
+    # the same list and this second-instance assertion would fail.
+    r1 = TurnResult()
+    assert r1.events == []
+    assert r1.game_over is False
+
+    r1.events.append(PlayerMoved(from_position=(0, 0), to_position=(1, 0)))
+    r2 = TurnResult()
+    assert r2.events == []
