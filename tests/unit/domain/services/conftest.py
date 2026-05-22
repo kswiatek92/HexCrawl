@@ -10,6 +10,16 @@ than plain fixtures because every helper takes kwargs — pytest fixtures
 themselves cannot be parametrised at call site. The factories keep the
 test bodies terse: ``dungeon = make_dungeon(current_floor_index=4)``.
 
+Scope is ``session`` (not the default ``function``) because the returned
+callables are stateless — every invocation generates fresh ``uuid4()``
+identities, so caching the factory across tests does not leak state.
+Session scope is also required for the property suite: Hypothesis fires
+a ``function_scoped_fixture`` health check when ``@given`` is mixed with
+function-scoped fixtures, since those fixtures are NOT reset between
+generated examples — only the test entrypoint is. Bumping to session
+silences the warning honestly (the factories really are reusable) rather
+than suppressing it with ``HealthCheck.function_scoped_fixture``.
+
 ``make_dungeon`` preserves the invariant ``0 <= current_floor_index <
 len(floors)`` by generating ``current_floor_index + 1`` floors — same
 discipline as the helper in ``test_score_service.py`` after the fix from
@@ -32,7 +42,7 @@ from src.domain.models import (
 )
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def make_floor() -> Callable[[], Floor]:
     def _make() -> Floor:
         return Floor(
@@ -46,7 +56,7 @@ def make_floor() -> Callable[[], Floor]:
     return _make
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def make_dungeon(make_floor: Callable[[], Floor]) -> Callable[..., Dungeon]:
     def _make(*, current_floor_index: int = 0, dungeon_id: UUID | None = None) -> Dungeon:
         return Dungeon(
@@ -59,7 +69,7 @@ def make_dungeon(make_floor: Callable[[], Floor]) -> Callable[..., Dungeon]:
     return _make
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def make_player() -> Callable[..., Player]:
     def _make(*, user_id: UUID | None = None, damage_taken: int = 0) -> Player:
         return Player(
@@ -72,7 +82,7 @@ def make_player() -> Callable[..., Player]:
     return _make
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def make_item() -> Callable[..., Item]:
     def _make(item_type: ItemType, *, count: int = 1) -> Item:
         return Item(
@@ -85,6 +95,6 @@ def make_item() -> Callable[..., Item]:
     return _make
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def fixed_when() -> datetime:
     return datetime(2026, 5, 22, 12, 0, tzinfo=UTC)
