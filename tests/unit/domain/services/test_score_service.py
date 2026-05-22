@@ -51,10 +51,13 @@ def _floor() -> Floor:
 
 
 def _dungeon(*, current_floor_index: int = 0, dungeon_id: UUID | None = None) -> Dungeon:
+    # Keep the invariant 0 <= current_floor_index < len(floors) — otherwise
+    # any future scoring code that touches dungeon.floors[current_floor_index]
+    # would crash only in tests, not in prod.
     return Dungeon(
         dungeon_id=dungeon_id or uuid4(),
         seed=42,
-        floors=[_floor()],
+        floors=[_floor() for _ in range(current_floor_index + 1)],
         current_floor_index=current_floor_index,
     )
 
