@@ -579,7 +579,7 @@ def test_rejected_action_does_not_increment_damage_taken_or_change_position() ->
 # --- Enemy AI apply-time guards --------------------------------------------
 
 
-def test_enemy_cannot_move_onto_another_enemys_tile() -> None:
+def test_enemy_cannot_move_onto_another_enemies_tile() -> None:
     # Two awake melee enemies in a row, player further down the line.
     # The back enemy's A* doesn't treat peer enemies as obstacles, so it
     # will plan a step onto the front enemy's tile; the apply-time guard
@@ -614,9 +614,10 @@ def test_awoken_enemy_stays_awake_after_player_breaks_los() -> None:
     process_turn(dungeon, player, Wait())
     assert enemy.awake is True  # turn 1 wakes it
 
-    # Teleport the player far away (Chebyshev 14 > WAKE_RADIUS=8).
-    # If aggro were released on out-of-range, the next wake check would
-    # flip enemy.awake back to False.
+    # Turn 1 stepped the enemy from (5, 0) to (4, 0); teleporting the
+    # player to (19, 0) puts them Chebyshev 15 > WAKE_RADIUS=8 from the
+    # enemy. If aggro were released on out-of-range, the next wake check
+    # would flip enemy.awake back to False.
     player.position = (19, 0)
     process_turn(dungeon, player, Wait())
 
