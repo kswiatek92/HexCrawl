@@ -4,7 +4,26 @@
 Claude will ask questions from this file one by one, grade each answer in real time, and finish with
 a full profile assessment: overall score, strong areas, weak spots, and specific things to revisit.
 
-**Pass threshold**: 90% per quiz. For 5-question quizzes: 5/5. For 10-question quizzes: 9/10.
+**What these quizzes are for**: HexCrawl is a *vehicle* for becoming a stronger senior backend
+engineer — not a gamedev project. Every question below is anchored in the real HexCrawl code but
+drills a transferable, interview-grade fundamental: the Python object model and concurrency, data
+structures and complexity, database internals (indexes, query plans, isolation, MVCC, pooling),
+system-design and architecture patterns, REST/HTTP semantics, FastAPI internals, testing discipline,
+and cloud-native/DevOps. The game mechanics (dungeon generation, enemy AI, pixel rendering) are
+deliberately reduced to whatever *engineering* lesson they carry, and nothing more.
+
+**Pass threshold**: 90% per quiz. In practice a 10-question quiz allows one miss (9/10); any quiz
+shorter than 10 questions requires every answer correct. Some game-flavoured tasks are intentionally
+short (2–4 questions) because there is little senior signal to extract from them — that is by design.
+
+**Find-the-bug questions**: many questions present a short, *buggy* code snippet and ask you to spot
+the defect. You only need to **identify** the bug in words — you never have to write or rewrite code
+(this quiz is meant to be takeable from a phone or terminal). If you miss it, the grader will **not**
+reveal the bug — it stays open so you can re-attempt later; ask explicitly if you want the answer.
+
+> Note: the Phase 1 task quizzes (1.1–1.19) were rewritten away from game trivia toward these
+> fundamentals. If `BOARD.md` still shows them as 🏆 passed, treat that as stale — the material is new
+> and worth re-taking.
 
 ---
 
@@ -14,221 +33,230 @@ a full profile assessment: overall score, strong areas, weak spots, and specific
 
 ### Task 1.1 — Repo structure
 
-1. You have a `DungeonGenerator` that takes a `seed: int` and returns a `Floor`. Where in the project does this class live, and why?
-2. What is the single rule that governs which direction imports are allowed to flow in hexagonal architecture?
-3. A colleague puts `from fastapi import HTTPException` inside `domain/services/game_service.py`. What is wrong with this, and what should they do instead?
-4. What is the difference between `domain/` and `application/` in this project?
-5. Why do `adapters/` exist as a separate layer rather than just putting database code directly in the routers?
+1. State the **Dependency Rule** (Clean Architecture) in one sentence, then explain how `entrypoints → application → domain ← adapters` is that same rule drawn for this repo. Which arrow does `from sqlalchemy import select` inside `domain/` violate?
+2. Hexagonal calls them *ports* and *adapters*; map each of `domain/ports/`, `adapters/db/`, and `entrypoints/http/` onto the **driving (primary)** vs **driven (secondary)** adapter distinction, and say which side initiates a call.
+3. The Dependency Inversion Principle (the "D" in SOLID) says high-level modules must not depend on low-level ones. How does *defining* `IGameRepository` in `domain/ports/` (not in `adapters/db/`) realise DIP at the level of source-code import direction?
+4. Today the boundary is enforced "socially via review + `/audit`." Why is an `import-linter` contract a strictly stronger guarantee, and what class of regression does the automated check catch that a human reviewer routinely misses?
+5. A teammate wants to collapse `domain/` and `application/` "to cut boilerplate." Explain what the application layer is *for* (use-case orchestration of ports) and name one concrete capability you lose by folding it into the domain services.
 
 ---
 
 ### Task 1.2 — `Player` dataclass
 
-1. Why use a `dataclass` instead of a regular class for `Player`? Name two concrete benefits in this codebase.
-2. What does `@dataclass(frozen=True)` give you, and would you apply it to `Player`? Why or why not?
-3. What is the difference between `field(default_factory=list)` and `field(default=[])`? Which one is correct, and what breaks if you use the wrong one?
-4. Should `Player` know how to save itself to the database? Explain your answer in terms of hexagonal architecture.
-5. If you need to add `last_seen: datetime` to `Player`, where does the value come from — the domain or an adapter — and why?
+1. `@dataclass` generates `__init__`, `__repr__`, `__eq__`. Explain how `eq=True` interacts with `__hash__`: why does a default (mutable) dataclass become **unhashable**, and what two flags restore hashability?
+2. `field(default_factory=list)` vs `field(default=[])` — explain the mutable-default gotcha in terms of *when* the default is evaluated (`def`-time, once) and the concrete bug a shared list causes across `Player` instances.
+3. What does `@dataclass(slots=True)` change about attribute storage (`__slots__` vs `__dict__`)? Give the two trade-offs — what you gain (memory, attribute-access speed) and what you lose (dynamic attributes, some multiple-inheritance cases).
+4. In DDD terms, is `Player` an **Entity** or a **Value Object**? Justify with the identity-vs-value distinction, and explain why that answer drives whether `frozen=True` is appropriate.
+5. Type hints are not enforced at runtime. If `Player.hp` is annotated `int` but an adapter constructs it with `"50"`, where in this architecture should that be caught, and which tool catches it before the code ever runs?
 
 ---
 
 ### Task 1.3 — `Enemy` dataclass + `BehaviourType` enum
 
-1. What is a Python `enum` and why is it preferable to using plain string constants like `"melee"` or `"ranged"` for behaviour types?
-2. What does `enum.auto()` do, and when would you use it over explicit integer values?
-3. You have `class BehaviourType(str, Enum)`. What does inheriting from `str` give you beyond a plain `Enum`?
-4. An `Enemy` has a `behaviour: BehaviourType`. Later the game logic does `if enemy.behaviour == "melee":`. Will this work if `BehaviourType` is a `str` enum? What are the risks?
-5. Should `Enemy` have a method like `enemy.attack(target: Player) -> int`? Argue both sides and give your conclusion.
+1. Compare `class BehaviourType(str, Enum)`, `enum.StrEnum` (3.11+), and a plain `Enum`. What does mixing in `str` buy you for JSON serialisation, and what surprising `==`/`in` behaviour does it introduce?
+2. Enum members are singletons. Explain why `enemy.behaviour is BehaviourType.MELEE` is both correct and cheaper than `== "melee"`, and tie it to the general rule: use `is` only for singletons, `==` for value equality.
+3. `if enemy.behaviour == "melee":` silently *works* for a `str`-mixed enum but silently *fails* (returns `False`) for a plain `Enum`. Why is "works for one enum type, fails for another" itself the argument against comparing enums to raw strings anywhere in the codebase?
+4. What does `enum.auto()` produce, and when do **explicit** values matter — e.g. when the value is persisted to a DB column or sent over the wire — versus when `auto()` is safe?
+5. Dispatching on `BehaviourType`: `match`, a dict-of-handlers, or polymorphism? Relate your choice to the **Open/Closed Principle** — which lets you add a new behaviour *without editing* existing dispatch code?
 
 ---
 
 ### Task 1.4 — `Item` dataclass + `ItemType` enum
 
-1. `ItemType` has values like `HEALTH_POTION`, `SWORD`, `SHIELD`. A new item type needs to be added. What files change, and what files should NOT need to change if your design is correct?
-2. What is the difference between a domain model (`Item` dataclass) and a database model (SQLAlchemy `ItemORM`)? Why do we keep them separate?
-3. `Item` has an `effect: int` that means different things depending on `ItemType` (damage bonus for weapons, HP for potions). Is this a good design? What would you do instead?
-4. Explain the concept of "tell, don't ask" with an `Item` example.
-5. Should items be mutable or immutable in the domain model? What are the trade-offs?
+1. `Item.effect: int` means damage for weapons but HP for potions — a field whose meaning depends on another field. Name the design smell, and show how a tagged union / per-type subclass makes the illegal combinations **unrepresentable**.
+2. Adding a new `ItemType`: which files *must* change and which must *not* if the design respects Open/Closed? What does Fowler's "shotgun surgery" smell look like if it's done wrong?
+3. The domain `Item` dataclass vs a future `ItemORM`: give two concrete problems that arise from collapsing them into one class (persistence concerns leaking into the domain; tests dragging in a DB).
+4. "Tell, don't ask": contrast `if item.type == SWORD: player.hp -= item.effect` against an effect-application design. Which one keeps item rules from leaking into `GameService`, and why?
+5. Should `Item` be `frozen=True`? Argue it as a **Value Object** (equality by value, no identity, safely shareable) and name what breaks if mutable items are shared across two inventories.
 
 ---
 
 ### Task 1.5 — `Floor` model
 
-1. `Floor` has a `tiles: list[list[TileType]]` grid. What are the coordinates convention trade-offs between `tiles[row][col]` vs `tiles[x][y]`? Which did you choose and why?
-2. A `Floor` is generated once and then only read during gameplay. What does this suggest about whether it should be mutable or frozen?
-3. How would you verify in a unit test that `DungeonGenerator` always places at least one staircase on every floor?
-4. `Floor` holds a `list[Enemy]`. Who is responsible for adding/removing enemies from this list — the `Floor` itself, `GameService`, or `EnemyAI`? Justify your answer.
-5. What is the maximum memory cost of a `Floor` with a 50×50 tile grid of `TileType` enum values? Is this a concern?
+1. `tiles: list[list[TileType]]` — what is the Big-O of random access `tiles[r][c]`, and how does a list-of-lists differ from a flat `list` + `r*width + c` indexing in terms of memory layout and cache locality?
+2. A 50×50 grid of enum members: explain why this is **2500 references to ~4 singleton objects**, not 2500 distinct objects, and why that makes the memory cost a non-issue.
+3. `Floor` is generated once then read-only during play. What does "immutable after construction" let you safely assume about sharing/caching/thread-safety, and would you enforce it with `frozen=True`?
+4. Who owns mutation of `Floor.enemies` — the `Floor`, `GameService`, or `EnemyAI`? Answer using Single Responsibility and the "anemic domain model" debate.
+5. To assert "every floor has at least one **reachable** staircase," which graph-traversal algorithm verifies reachability from the spawn tile, and what is its complexity on a W×H grid?
 
 ---
 
 ### Task 1.6 — `Dungeon` model
 
-1. `Dungeon` has a `seed: int`. Why store the seed rather than the pre-generated floors? What does this allow?
-2. What is the difference between `current_floor_index` and a reference to the current `Floor` object? Which approach did you use and why?
-3. `Player` is passed separately to services rather than stored as a field on `Dungeon`. What does this separation gain you over a `player: Player` field, and what are the implications for serialisation when saving a run?
-4. A `Dungeon` is a "run" — it starts, is played, and ends. Should it have a `status` field (`IN_PROGRESS`, `COMPLETED`, `ABANDONED`)? What behaviour does this enable?
-5. If two players could share a dungeon (co-op), what would need to change in the `Dungeon` model?
+1. In DDD, is `Dungeon` an **Aggregate Root**? Explain what invariants an aggregate root guards and why external code shouldn't reach in and mutate a `Floor` directly.
+2. Storing `seed: int` instead of the generated floors trades space for compute and buys **reproducibility**. State that property precisely (same seed + same generator version ⇒ identical floors) and one way an innocuous code change silently breaks it.
+3. `current_floor_index: int` vs holding a direct `Floor` reference: discuss the aliasing/serialisation trade-off — why does an index sidestep duplicate-object problems when you save and reload a run?
+4. A `status` field (`IN_PROGRESS` / `COMPLETED` / `ABANDONED`) turns `Dungeon` into a small **state machine**. Which transitions should the model reject, and why is enforcing them in the domain better than in the API layer?
+5. The board chose "no `player` field — Option B." What coupling does keeping `Player` out of `Dungeon` avoid, and what is the cost you pay for that decision?
 
 ---
 
 ### Task 1.7 — `Score` dataclass + scoring formula
 
-1. The formula is `floors_reached × kills × item_multiplier`. What is the risk of a multiplicative formula, and how would you guard against a score of zero ruining a good run?
-2. Should `Score` be computed inside `GameService`, `ScoreService`, or `SubmitScore` use case? Explain the reasoning.
-3. What does it mean for a function to be a "pure function"? Is `ScoreService.compute(dungeon: Dungeon) -> Score` a pure function?
-4. `Score` has a `computed_at: datetime`. Where should this value come from — passed in by the caller or generated inside `ScoreService`? Why does this matter for testing?
-5. A player exploits a bug and gets `kills = 10_000`. How would you defend against score manipulation at the domain level?
+1. Is `ScoreService.compute(dungeon) -> Score` a **pure function**? Define purity (deterministic + no side effects) and check `compute` against both clauses.
+2. `Score.computed_at: datetime` — why is calling `datetime.now()` *inside* `compute` a purity violation, and how does **injecting a clock** (`now: Callable[[], datetime]`) restore testability? Tie this to dependency inversion.
+3. The formula is multiplicative (`floors² × kills × multiplier`). What's the failure mode when any factor is `0`, and how would you redesign it (guarded / additive floor) so one zero doesn't annihilate a good run?
+4. Python `int` is arbitrary-precision, so there's no overflow — but name a real downstream consequence of an unbounded integer when this score is serialised to JSON and read by the React client (hint: JS `Number` and 2^53).
+5. Anti-cheat: should "a score from an `ABANDONED` run = 0" live in the domain `ScoreService` or the `SubmitScore` use case? Justify with the split "domain owns invariants, use case owns orchestration."
 
 ---
 
 ### Task 1.8 — `TileType` enum
 
-1. `TileType.WALL` and `TileType.FLOOR` both need to be rendered by the React frontend. The frontend receives the game state as JSON. What does `TileType` serialise to by default in Python, and how would you ensure the frontend gets a predictable string value like `"WALL"`?
-2. What is the difference between `IntEnum` and `StrEnum` (Python 3.11+), and which is more appropriate for `TileType`?
-3. A tile is passable if it is `FLOOR`, `DOOR` (when open), or `STAIRS`. Should this logic live in `TileType` (as a method), in `Floor`, or in `GameService`?
-4. Enums are singletons in Python — `TileType.WALL is TileType.WALL` is always `True`. Why is this useful for game logic compared to strings?
-5. How would you extend `TileType` to support `TRAP` and `WATER` without breaking any existing code? What tests would you add?
+1. A plain `Enum` isn't JSON-serialisable by default. What does `TileType` serialise to as a `StrEnum` vs an `IntEnum`, and which gives the React client a stable, debuggable contract (`"WALL"` vs `3`)?
+2. The "is this tile passable?" rule depends on tile state (an open door). Should that predicate be a method on `TileType`, a function in `Floor`, or in `GameService`? Use the heuristic "behaviour belongs with its data, cross-entity rules belong in the service."
+3. `IntEnum` members compare equal to bare ints (`TileType.WALL == 3`). Name one bug this can silently mask, and why a `StrEnum` (or plain `Enum`) is safer for a value that is mostly a label.
+4. Adding `TRAP`/`WATER` without breaking existing code: what makes enum extension backward-compatible on the Python side, and what must the *frontend* and any *persisted* data handle for forward-compatibility?
 
 ---
 
 ### Task 1.9 — `Action` type union
 
-1. What is a Python `Union` type and how does it differ from a base class hierarchy for modelling actions? Give one advantage of each approach.
-2. `ProcessTurn` receives an `Action`. How do you dispatch on the specific action type cleanly in Python 3.10+?
-3. A `Move` action has `direction: Direction`. What is the benefit of `Direction` being an enum (`NORTH`, `SOUTH`, `EAST`, `WEST`) rather than a tuple `(dx, dy)`?
-4. `Action` objects come from the frontend via WebSocket as JSON. What layer is responsible for converting raw JSON into typed `Action` objects, and what layer should never see raw JSON?
-5. What happens in `GameService` if it receives an action type it doesn't recognise? Where should this error be handled, and what should be returned to the client?
+1. `Action = Move | Attack | UseItem | ...` (a union of frozen dataclasses) vs a base-class hierarchy: give one advantage of each (`match`-driven exhaustiveness vs shared inherited behaviour).
+2. This `match` on an `Action` union compiles fine but routes almost every action to the wrong handler:
+   ```python
+   match action:
+       case Move():
+           return apply_move(state, action.direction)
+       case Attack:
+           return apply_attack(state, action.target)
+       case _:
+           return state
+   ```
+   Find the bug and name the runtime symptom it produces.
+3. "Parse, don't validate": the WebSocket delivers raw JSON. Which layer turns `{"action":"move",...}` into a typed `Action`, and why must `GameService` never receive a bare `dict`? (Anti-corruption / boundary argument.)
+4. `Direction` as an enum vs a raw `(dx, dy)` tuple: what does the enum buy you for exhaustiveness, validation, and serialisation?
+5. `GameService` receives an unrecognised action variant. Is that a domain error, a validation error, or a programming error — and what response (or exception) maps to each?
 
 ---
 
 ### Task 1.10 — `IGameRepository` Protocol
 
-1. What is the difference between `typing.Protocol` and `ABC` (Abstract Base Class) in Python? Why is `Protocol` preferred for ports in hexagonal architecture?
-2. Write the signature of a `save` method on `IGameRepository` that saves a `Dungeon` and returns the saved entity. Should it return `Dungeon` or `None`? Justify your choice.
-3. What does `runtime_checkable` do when added to a Protocol, and when would you need it?
-4. `IGameRepository` has a `get(game_id: UUID) -> Dungeon | None`. Why return `None` rather than raising an exception when the game is not found?
-5. A new requirement: list all games for a user, paginated. What signature would you add to `IGameRepository`, and how does this follow or break the Interface Segregation Principle?
+1. `typing.Protocol` (structural) vs `ABC` (nominal): explain "duck typing checked statically," and why ports-as-Protocols let an adapter satisfy the interface **without importing the domain** — preserving the dependency direction.
+2. `get(id) -> Dungeon | None`: why return `None` rather than raise on "not found"? When is absence an expected outcome (return `None`) vs an exceptional one (raise)?
+3. `@runtime_checkable`: what does it add, what does it *not* verify (method signatures), and why is that a footgun if you lean on `isinstance` for correctness?
+4. The Repository pattern (Fowler/PoEAA): what illusion does it give the domain, and why is "swap Postgres for Mongo without touching the domain" the real test of whether the port leaks persistence concerns?
+5. Adding `list_for_user(user_id, limit, cursor)`: does putting it on `IGameRepository` respect or violate **Interface Segregation**? When would you split a read-port from a write-port (CQRS-lite)?
 
 ---
 
 ### Task 1.11 — `IScoreRepository` Protocol
 
-1. `IScoreRepository` has `top_n(n: int, period: str) -> list[Score]`. What are the problems with `period: str`, and how would you improve this signature?
-2. The leaderboard is read-heavy and write-light. Does `IScoreRepository` need to know about this? Where does this concern belong?
-3. What is the Liskov Substitution Principle? Give an example of how a `PostgresScoreRepository` could violate it when implementing `IScoreRepository`.
-4. Should `IScoreRepository` expose a `delete(score_id: UUID)` method? When would you include or exclude admin operations from a port interface?
-5. Why should the return type of `top_n` be `list[Score]` (domain model) rather than `list[dict]`? What does this enforce?
+1. `top_n(n, period: str)` — enumerate the problems with `period: str` (stringly-typed, no exhaustiveness, accepts garbage) and improve the signature with an enum or `Literal`.
+2. State the **Liskov Substitution Principle** precisely, then give a concrete way a `PostgresScoreRepository` could violate it while still "implementing" the Protocol (e.g. narrowing accepted inputs, or raising where the contract promised `None`).
+3. Why must `top_n` return `list[Score]` (domain model) rather than `list[dict]`? What does the typed return enforce about the adapter→domain mapping boundary?
+4. Should `delete(score_id)` live on this port? Discuss admin/maintenance operations versus Interface Segregation — when a fat repository interface starts to hurt.
+5. The leaderboard is read-heavy and write-light. Does the *port* need to know that? Where does the read/write asymmetry get addressed (caching adapter, read replica) without leaking into the domain interface?
 
 ---
 
 ### Task 1.12 — `ICachePort` Protocol
 
-1. `ICachePort` has `get(key: str) -> str | None` and `set(key: str, value: str, ttl: int)`. Why store values as `str` rather than `dict` or `Any`?
-2. Who is responsible for serialising and deserialising the `Dungeon` object when storing it in cache — the `ICachePort` adapter, or the use case that calls it?
-3. What is a TTL (Time-To-Live) and why is it critical for game session state stored in Redis?
-4. A cache `get` returns `None`. What are the two possible reasons for this, and how should the application layer handle each?
-5. `ICachePort` is a port. What would a `FakeCachePort` (for unit tests) look like in 5–10 lines of Python?
+1. `get(key) -> str | None`, `set(key, value, ttl)` — why keep the port's value type `str`/`bytes` rather than `Any`/`dict`? Which concern are you deliberately pushing onto the *caller*?
+2. A `get` returns `None`: distinguish the two causes (key absent vs key expired), explain why the cache often can't tell them apart, and why **cache-aside** treats both identically (miss → recompute).
+3. Define TTL and explain why active game state in Redis uses one (2h per `CLAUDE.md`). What failure does a missing TTL cause (unbounded memory, leaked sessions)?
+4. Cache-aside vs write-through vs write-behind: which does "load from Redis, fall back to Postgres" implement, and what consistency window does it accept?
+5. This `FakeCachePort` passes its own isolated test but leaks state between tests when run in a suite:
+   ```python
+   class FakeCachePort:
+       _store = {}
+       def get(self, key): return self._store.get(key)
+       def set(self, key, value, ttl): self._store[key] = value
+   ```
+   Find the bug. Separately: why is a hand-written fake like this still preferable to a `Mock` for a stateful collaborator?
 
 ---
 
 ### Task 1.13 — `DungeonGenerator` BSP algorithm
 
-1. What is Binary Space Partitioning (BSP)? Describe the algorithm in plain English in 4–5 sentences.
-2. `DungeonGenerator` takes a `seed: int` and is a pure function. Why is the seed important for testability and for the replay feature planned in the backlog?
-3. How do you create a seeded random generator in Python without affecting global `random` state?
-4. What makes a dungeon floor "valid"? List at least 3 properties your generator should guarantee, and explain how you would assert each in a unit test.
-5. BSP tends to produce rectangular rooms. Name one alternative algorithm and describe one trade-off it makes compared to BSP.
+> *Trimmed to fundamentals — the BSP mechanics themselves carry little senior signal.*
+
+1. `DungeonGenerator(seed)` is a pure function. Explain how you obtain a **seeded, isolated** RNG (`random.Random(seed)`) so generation is reproducible and never touches global `random` state — and why global RNG state is both a testing hazard and a concurrency hazard.
+2. BSP is recursive. Python has no tail-call optimisation and a default recursion limit (~1000). At what point does that matter, and when would you convert the recursion to an explicit stack? (The recursion-vs-iteration trade-off in general.)
 
 ---
 
 ### Task 1.14 — Unit tests for `DungeonGenerator`
 
-1. What is the difference between a unit test and an integration test? Why are all Phase 1 tests unit tests?
-2. `DungeonGenerator` uses randomness. How do you write a deterministic unit test for a function that involves randomness?
-3. What is property-based testing? Give one property of `DungeonGenerator` output that would be a good candidate for a property test with `hypothesis`.
-4. A test is slow (takes 2 seconds). What are the likely causes in a pure-Python domain test, and how would you fix it?
-5. What does code coverage measure, and why is 100% coverage not sufficient to guarantee correctness?
+> *Reframed to testing fundamentals (property-based testing, coverage quality).*
+
+1. Determinism in tests: how does seeding make a randomised function unit-testable, and what's the difference between asserting the *exact output* (golden/snapshot) and asserting *invariants*?
+2. Define **property-based testing** (Hypothesis), then give one invariant of generator output (e.g. "all walkable tiles reachable," "≥1 staircase") that's a far stronger test than any single example. Why does Hypothesis's **shrinking** matter when it finds a failure?
+3. The repo has a `.hypothesis/` dir. What is a *flaky* property test, and how do `@seed` / the example database make a Hypothesis failure reproducible in CI?
+4. Coverage ≥ 80% is gated in CI. Explain why 100% line coverage still doesn't prove correctness (it measures execution, not assertion strength, nor branch×data combinations), and how **mutation testing** (`mutmut`) probes the quality of your assertions.
 
 ---
 
 ### Task 1.15 — `EnemyAI` pathfinding
 
-1. What is Manhattan distance, and why is it the right distance metric for a tile-based grid game (as opposed to Euclidean distance)?
-2. `EnemyAI` is a pure function that takes `(enemy: Enemy, player: Player, floor: Floor) -> Action`. Why is a pure function significantly easier to test than a method on `Enemy`?
-3. An enemy can't reach the player because a wall blocks the direct path. What approach would you take to make the AI navigate around obstacles? Name the algorithm.
-4. What is the risk of running pathfinding for every enemy on every turn as the number of enemies grows? What is the time complexity of A* on a grid?
-5. Should `EnemyAI` be part of the domain layer or an adapter? Justify your answer.
+> *Reframed to the data-structures-&-algorithms fundamentals it exercises.*
+
+1. Pathfinding on a grid is graph search. Contrast **BFS** (unweighted shortest path, queue, O(V+E)) with **DFS**, and explain why BFS finds the *shortest* path on an unweighted tile grid while DFS does not.
+2. `EnemyAI` is a pure function `(enemy, player, floor) -> Action`. Why is that dramatically easier to test than a method that mutates `Enemy`, and how does it embody the "functional core, imperative shell" idea?
+3. Running per-enemy pathfinding every turn is O(enemies × grid). State A*'s complexity and one way to bound total cost as enemy count grows (e.g. only path when an enemy is awake/in range — an algorithmic vs architectural optimisation).
 
 ---
 
 ### Task 1.16 — `GameService.process_turn()`
 
-1. `process_turn` receives an `Action` and a `Dungeon` and returns a new `Dungeon`. Should it mutate the input `Dungeon` or return a new one? What are the trade-offs?
-2. What is the order of operations in a turn? Write out the steps (player action → enemy AI → collision detection → state update → result) and explain why order matters.
-3. `process_turn` needs a random number generator (for damage variance). How do you pass this in without making `GameService` depend on Python's global `random`?
-4. What is a "domain event"? Give an example of a domain event that `process_turn` might emit, and explain why emitting events is better than calling side effects directly.
-5. `GameService` has no `__init__` dependencies in a pure hexagonal design — it takes everything as parameters. What are the advantages and disadvantages of this compared to injecting a repository in the constructor?
+1. Return a *new* `Dungeon` vs mutate in place: discuss the trade-offs (testability, undo, aliasing safety vs allocation cost). Which fits a "functional core"?
+2. Order of operations matters. Lay out the turn pipeline (validate → apply player action → enemy AI → resolve → new state) and give one concrete bug caused by reordering (e.g. enemies acting on stale positions).
+3. `process_turn` needs RNG for damage variance. How do you inject it so the service never touches global `random`, and why does that make the whole turn reproducible from `(state, seed, action)`?
+4. Define **domain event**. Give one `process_turn` might emit (`PlayerDied`, `EnemyKilled`) and explain why emitting an event beats calling a side effect (e.g. the Celery trigger) directly from the domain.
+5. `GameService` takes everything as parameters (no `__init__` deps). Contrast with constructor-injected repositories: what does the parameter style buy in purity, and what does it cost in caller ergonomics?
 
 ---
 
 ### Task 1.17 — Unit tests for `GameService`
 
-1. What is a "fake" (or "stub") in testing, and how does it differ from a `Mock`? When would you use each?
-2. Write out the test cases you need to cover for `process_turn` when the player attacks an enemy. What are the edge cases?
-3. `GameService` test uses `FakeGameRepository`. What interface must `FakeGameRepository` satisfy, and how does Python's `Protocol` enforce this?
-4. What is the AAA pattern in unit testing? Apply it to a test for `process_turn` when a player descends stairs.
-5. A test for `process_turn` fails only sometimes (flaky test). What are the most likely causes, and how do you diagnose and fix each?
+1. **Fake vs Stub vs Mock vs Spy** (Meszaros/Fowler taxonomy): define each, and say which you'd reach for with a *stateful* collaborator versus when you need to *verify an interaction*.
+2. Enumerate the attack-resolution test cases (kill, non-lethal hit, overkill, damage-variance bounds, target out of range). Which edge case is most often forgotten?
+3. The board notes `process_turn` needs no fake (it takes no ports). Why does a pure function require zero test doubles, and why is that a *design* win rather than just a testing convenience?
+4. Apply **Arrange-Act-Assert** to a "descend stairs" test. Why does one logical assertion per test aid diagnosis when it fails?
+5. A `process_turn` test is flaky. List the usual causes in a *pure* domain test (hidden global RNG, `set`/`dict` ordering assumptions, wall-clock time, a shared mutable fixture) and how you'd isolate each.
 
 ---
 
 ### Task 1.18 — `ScoreService.compute()`
 
-1. `ScoreService.compute(dungeon: Dungeon) -> Score` — is this a pure function? What makes you certain?
-2. The scoring formula uses `item_multiplier`. How do you compute this multiplier from the player's inventory? Where does this logic live?
-3. A `Dungeon` that was abandoned (`status = ABANDONED`) should score zero. Should this check live in `ScoreService` or in the `SubmitScore` use case? Justify your answer.
-4. What is the risk of `int` overflow when calculating very large scores in Python? Is this actually a concern in Python?
-5. How would you make the scoring formula configurable (e.g., different multipliers for different game modes) without changing `ScoreService`?
+1. Re-derive why `compute` is pure, then explain how injecting the scoring weights lets you support multiple game modes *without editing* `ScoreService`. Name the principle (Open/Closed) and the pattern (Strategy).
+2. Where does `item_multiplier` aggregation belong, and why is "compute the multiplier from inventory" a domain rule rather than an adapter concern?
+3. An `ABANDONED` dungeon scores `0`. Is that `compute`'s responsibility (a scoring invariant) or the use case's (an orchestration guard)? Pick one and defend it consistently.
+4. The formula could be data-driven (weights from config). Weigh the senior trade-off between a flexible config-driven formula and a simple hard-coded one (YAGNI vs premature generalisation).
 
 ---
 
 ### Task 1.19 — Unit tests for `ScoreService`
 
-1. `ScoreService.compute()` is a pure function with no dependencies. Does it need fake/mock objects in its tests? Why or why not?
-2. List 5 distinct test cases for `ScoreService.compute()` that together give you confidence the formula is correct.
-3. What is parametrize in pytest, and why is it a good fit for testing `ScoreService` with multiple input scenarios?
-4. A score test passes locally but fails in CI. What environment-related causes would you investigate first?
-5. What is the purpose of `conftest.py` in pytest, and what would you put in a Phase 1 `conftest.py`?
+1. A pure function with no deps needs no fakes — why? And what does that say about the value-per-line of these tests versus integration tests (the test pyramid)?
+2. `pytest.mark.parametrize`: why is it the right tool for a formula with many input combinations, and how does it differ from a loop inside one test in terms of *failure reporting*?
+3. Give a **property** of `compute` worth a Hypothesis test (e.g. monotonicity — more kills never lowers the score) and explain why properties catch bugs an example table misses.
+4. A score test passes locally but fails in CI. List the environment causes to check first (locale/timezone, Python version, float-vs-int, dependency-pin drift). Why is determinism the precondition for any useful CI signal?
+5. What is `conftest.py` for (shared fixtures, config, no import needed), and which Phase-1 fixtures would you centralise there (sample `Dungeon`/`Player` builders)?
 
 ---
 
 ## Phase 1 — Summary quiz (10 questions, need 9/10)
 
-1. Explain hexagonal architecture in your own words. What problem does it solve, and what is the key rule that enforces the architecture?
+1. Explain hexagonal / Clean architecture and the **Dependency Rule** in your own words. What single source-code rule enforces it, and how would an `import-linter` contract encode that for `src/domain`?
 
-2. You are reviewing a PR. The developer has put this in `domain/services/game_service.py`:
-   ```python
-   from sqlalchemy.orm import Session
-   def process_turn(session: Session, action: Action) -> Dungeon:
-       ...
-   ```
-   What is wrong, and how do you fix it?
+2. PR review: `from sqlalchemy.orm import Session` appears in `domain/services/game_service.py`. Name the violated principle, the concrete runtime/testing risk, and the fix (define a port, inject it).
 
-3. What is the difference between `Protocol` and `ABC`? Give a concrete reason why `Protocol` is better for this project's ports.
+3. `Protocol` vs `ABC` — structural vs nominal typing. Give the concrete reason Protocols fit ports here: an adapter can satisfy the interface without ever importing the domain.
 
-4. A player dies during `process_turn`. The application needs to: (a) save the final dungeon state to PostgreSQL, (b) trigger a Celery task to recalculate the leaderboard, and (c) return a `GameOver` response to the client. In which layer does each of these happen, and why?
+4. A player dies in `process_turn`. The app must (a) persist the final state to Postgres, (b) enqueue a Celery leaderboard recalc, (c) return a `GameOver` response to the client. Assign each to a layer and justify with the dependency rule.
 
-5. Why are domain-layer unit tests in this project always fast and have zero infrastructure dependencies? What specifically ensures this?
+5. Why are domain-layer unit tests in this project always fast and infrastructure-free? Point to the *specific architectural property* (pure functions behind ports, no I/O) that guarantees it.
 
-6. Describe the BSP dungeon generation algorithm. What properties of the output does it guarantee, and what is one weakness of the approach?
+6. Define a **pure function** and name two from this domain. Why does purity make the "functional core" trivially testable and safe to parallelise?
 
-7. A `FakeGameRepository` is used in `GameService` tests. Write out what its `save` method looks like in Python (just the implementation, not the class boilerplate).
+7. The mutable-default-argument gotcha: explain it at the level of *when* the default is evaluated, give the `default_factory` fix, and say why this is a classic senior screening question.
 
-8. `process_turn` runs enemy AI for every enemy on every turn. As the floor fills with 50 enemies, what is the performance risk? What is one architectural change that would mitigate it?
+8. The `Score` formula multiplies its factors. Walk through a numeric example, then critique the multiplicative design (zero annihilation) and propose a guard.
 
-9. The `Score` formula: `floors_reached × kills × item_multiplier`. A player reaches floor 5 with 20 kills and 3 items with multipliers [1.5, 2.0, 1.0]. What is the final score? Walk through the calculation.
+9. "Make illegal states unrepresentable": take `Item.effect` (one field with two meanings) and redesign it as a typed union. What entire class of bug disappears?
 
-10. A new developer joins and asks: "Why don't we just use Django ORM models as our domain models? It would save having to map between two sets of models." Give a complete answer explaining the trade-offs.
+10. A new dev asks "why not just use our ORM models as domain models?" Give the full senior answer: anemic-domain coupling, persistence concerns leaking, test speed, and the hexagonal boundary.
 
 ---
 ---
@@ -239,135 +267,165 @@ a full profile assessment: overall score, strong areas, weak spots, and specific
 
 ### Task 2.1 — `docker-compose.yml`
 
-1. What is Docker Compose and what problem does it solve for local development?
-2. What is a named volume in Docker Compose, and why do you use one for the PostgreSQL data directory?
-3. What does `depends_on` do in a Compose file, and what does it NOT guarantee?
-4. The `postgres` container starts but the application can't connect yet. What is the most common cause, and how do you fix it?
-5. How would you add a `pgadmin` service to Compose for local DB inspection, and what port would you expose it on?
+1. What dev/prod-parity problem does Compose solve (a twelve-factor concern), and what's the danger of dev-only conveniences silently drifting from production?
+2. Named volume vs bind mount vs anonymous volume for Postgres data: why a *named* volume, and what data-loss bug does the wrong choice cause on `docker compose down`?
+3. `depends_on` orders container *start* but not *readiness*. Why is "postgres container started" not the same as "postgres accepting connections," and what's the correct fix (healthcheck + `condition: service_healthy`, or app-side retry)?
+4. The app can't reach Postgres on first boot. Walk the diagnosis order: service-name DNS, port, readiness race, credentials. Which is most common and why?
+5. How does Compose's default network let the app reach `postgres:5432` by service name (no hardcoded IP), and why does that matter for reproducibility?
 
 ---
 
 ### Task 2.2 — Alembic setup + initial migration
 
-1. What is Alembic and what is the difference between `alembic revision --autogenerate` and writing a migration manually?
-2. What does `alembic upgrade head` do, and what does `alembic downgrade -1` do?
-3. Autogenerate compares your SQLAlchemy models to the current database schema. What must be true for autogenerate to work correctly?
-4. A migration runs in production and fails halfway through. What is the risk, and what SQL feature protects against partial migrations?
-5. Your `users` table needs a new `NOT NULL` column added. What is the safe migration strategy for a table that already has data?
+1. `--autogenerate` vs hand-written migrations: what does autogenerate *diff*, and name two changes it **can't** detect (e.g. server defaults, some type changes, any data migration).
+2. `upgrade head` / `downgrade -1`: what makes a migration reversible, and why are some (dropping a populated column) irreversible in practice?
+3. Adding a `NOT NULL` column to a populated table **safely**: describe the expand/contract pattern (add nullable → backfill → set `NOT NULL`) and why a naïve single migration locks or breaks the table.
+4. A migration fails halfway through. Which engines wrap DDL in a transaction (Postgres does), and why does transactional DDL save you from a half-applied schema?
+5. Why must migrations be checked in and validated in CI (single head / `alembic check`)? What goes wrong when two branches each create a head?
 
 ---
 
 ### Task 2.3 — SQLAlchemy ORM models
 
-1. What is the difference between a SQLAlchemy ORM model and a domain dataclass? Why keep them separate in this project?
-2. What is the N+1 query problem? Give an example where loading `Dungeon` objects in SQLAlchemy could trigger it.
-3. What does `relationship(..., lazy="selectin")` do, and when would you choose it over `lazy="joined"`?
-4. `Dungeon` has a `Player` in the domain model. How do you represent this in the DB schema? (Foreign key, embedded JSON, or separate table — argue your choice.)
-5. What is the purpose of `__tablename__` in a SQLAlchemy model, and does it need to match the Python class name?
+1. ORM model vs domain dataclass: restate the separation and give the two concrete failure modes of merging them (persistence concerns leak into the domain; tests get slow/IO-bound).
+2. Define the **N+1 query problem** precisely (one query for the parents, N for the children) and give a `Dungeon → Floors → Enemies` access pattern that triggers it.
+3. `lazy="selectin"` vs `"joined"` vs `"subquery"`: describe the query shape each emits and when `selectin` wins (collections; avoids the row multiplication a join causes).
+4. SQLAlchemy's **Identity Map** and **Unit of Work**: what do they give you within a session, and how does the identity map prevent two objects for the same primary key?
+5. Representing `Dungeon.player` in the schema: foreign key vs embedded JSONB vs separate table — argue the trade-offs (queryability/normalisation vs read-as-a-blob simplicity).
 
 ---
 
 ### Task 2.4 — `PostgresGameRepository`
 
-1. `PostgresGameRepository` implements `IGameRepository`. What specifically must be true for Python's type checker to consider it a valid implementation of the Protocol?
-2. `save(dungeon: Dungeon) -> Dungeon` receives a domain object. What are the two main steps in the adapter before data hits the database?
-3. What does `async with session.begin()` give you, and what happens if an exception is raised inside the block?
-4. What is the `Unit of Work` pattern? Is it already provided by SQLAlchemy, or do you need to implement it yourself?
-5. You load a `Dungeon` from PostgreSQL and need to return a domain `Dungeon` dataclass. Write out in pseudocode how you convert between the ORM model and the dataclass.
+1. For mypy to accept `PostgresGameRepository` as an `IGameRepository`, what exactly must match (method names, parameter/return types, variance)? Why is there no `implements` keyword (structural typing)?
+2. The adapter's core job is mapping: domain `Dungeon` → ORM → SQL and back. Why does that mapping belong in the adapter, and what's the cost of letting it leak (the domain learns about columns)?
+3. `async with session.begin()`: what transaction boundary does it open, and what happens on an exception (rollback) vs a clean exit (commit)?
+4. Is SQLAlchemy's session already a Unit of Work? Explain, and say when you'd wrap it in an explicit UoW abstraction for use-case-level atomicity.
+5. Async SQLAlchemy + asyncpg: why must the whole call chain be `async`, and what's the classic bug of making a blocking/sync DB call inside an async endpoint?
 
 ---
 
 ### Task 2.5 — `PostgresScoreRepository`
 
-1. `top_n(n: int, period: ScorePeriod) -> list[Score]` fetches the leaderboard from the database. Write the SQLAlchemy query you would use for the "global all-time top 10".
-2. A leaderboard query runs on a table with 10 million rows. What index would you add, and what SQL clause makes the index effective?
-3. What is a database transaction isolation level? What level is appropriate for leaderboard reads, and why?
-4. `save(score: Score)` must be idempotent — if called twice with the same score, it should not create duplicates. How would you implement this in PostgreSQL?
-5. What is the difference between `LIMIT` and `OFFSET` pagination vs keyset (cursor-based) pagination? Which is better for a leaderboard and why?
+1. This query is meant to return the global all-time **top 10** but returns the wrong rows:
+   ```sql
+   SELECT user_id, score FROM scores
+   WHERE period = 'all_time'
+   ORDER BY score
+   LIMIT 10;
+   ```
+   Find the bug. Then name the index that turns this query into an index scan (e.g. `(period, score DESC)`), and say when a **covering** index would enable an index-only scan.
+2. `EXPLAIN` vs `EXPLAIN ANALYZE`: what does each show, and how do you spot a missing index (a seq scan on a large table; estimated-vs-actual row blow-up)?
+3. Keyset (cursor) vs `LIMIT`/`OFFSET` pagination: why does deep `OFFSET` degrade, why is keyset the right call for a leaderboard, and what's the cursor-stability caveat under concurrent inserts?
+4. Make `save(score)` idempotent against a retry: `INSERT ... ON CONFLICT DO NOTHING/UPDATE` on which unique key? Why is idempotency a *distributed-systems necessity* (at-least-once delivery), not a nicety?
+5. Which isolation level do leaderboard *reads* need, and why is Read Committed (Postgres's default) enough here while an in-game currency transfer would want Repeatable Read or Serializable? Mention MVCC.
 
 ---
 
 ### Task 2.6 — Integration tests for DB repos
 
-1. What is `testcontainers-python` and how does it differ from using a fixed local database for tests?
-2. What is a pytest fixture with `scope="session"` vs `scope="function"`, and which scope would you use for the database container? Why?
-3. How do you ensure each test starts with a clean database state? Name two approaches and compare them.
-4. An integration test passes locally but fails in CI because the container takes 30 seconds to start. What is the standard fix?
-5. What is the difference between testing the repository in isolation vs testing the full stack (router → use case → repository)? When would you do each?
+1. `testcontainers` vs a shared local DB: what reproducibility/isolation property does an ephemeral container give CI, and how does a shared DB create inter-test coupling?
+2. `scope="session"` vs `scope="function"` fixtures: which suits the container (expensive, once) vs per-test data, and what's the speed-vs-isolation trade-off?
+3. Two ways to reset state between tests (transaction-rollback-per-test vs truncate/recreate): compare speed and fidelity, and say why rollback-per-test is the common fast default.
+4. Where do these sit on the **test pyramid**, and why do you want comparatively *few* of them relative to domain unit tests?
+5. A container takes 30s to start in CI and tests time out. Which fix addresses the *root cause* — wait-for-ready healthcheck, session-scoped reuse, or readiness polling?
 
 ---
 
 ### Task 2.7 — `RedisCache` implementing `ICachePort`
 
-1. `set(key: str, value: str, ttl: int)`. The `Dungeon` domain object is not a string. Who serialises it before calling `cache.set()`, and what format do you use?
-2. What does Redis `SETEX` do, and why use it instead of separate `SET` + `EXPIRE` commands?
-3. `redis.asyncio` vs `redis-py` — what is the difference and why does this project use the async version?
-4. What is a Redis connection pool, and why does a FastAPI application need one rather than opening a new connection per request?
-5. The cache is down. `ICachePort.get()` raises a connection error. How should the application layer handle this gracefully without crashing the game?
+1. Who serialises `Dungeon` before `cache.set`, and in what format (JSON vs pickle)? Why is pickle in a cache a security and portability risk?
+2. `SETEX` vs `SET` + `EXPIRE`: why does the atomic single command avoid a TTL-less key if the process dies between two separate commands?
+3. `redis.asyncio` vs the sync `redis-py`: why must a FastAPI app use the async client, and what does a blocking Redis call do to the event loop?
+4. Why does the app need a Redis **connection pool** rather than a connection per request? Relate it to DB pool sizing (connection-setup cost, file-descriptor exhaustion).
+5. Redis is down and `get` raises. Design **graceful degradation**: fall back to Postgres, log at what level, and explain why a *silent* fallback that hides the outage is an anti-pattern.
 
 ---
 
 ### Task 2.8 — Integration tests for `RedisCache`
 
-1. What would a minimal integration test for `RedisCache.set()` and `RedisCache.get()` look like? Write the test body in pseudocode.
-2. How do you test that a cached value expires correctly after its TTL?
-3. Your `RedisCache` integration test passes in isolation but fails when run alongside other tests. What is the most likely cause?
-4. What is `fakeredis`, and when would you use it instead of a real Redis container in tests?
-5. Should the `RedisCache` integration test use the same Redis instance as the running application? Explain the risks.
+1. This round-trip test for `RedisCache` always fails (or emits a coroutine warning) even though the cache works:
+   ```python
+   async def test_roundtrip(cache):
+       await cache.set("k", "v", ttl=60)
+       assert cache.get("k") == "v"
+   ```
+   Find the bug. What single assertion, done correctly, proves serialisation symmetry?
+2. Testing TTL expiry deterministically: why is `time.sleep` the wrong tool, and what are the alternatives (fakeredis time control, short TTL + poll, clock injection)?
+3. A Redis test passes alone but fails in the suite — most likely a shared-key/shared-DB collision. How do per-test key namespaces or `FLUSHDB` fix it, and which is safer?
+4. `fakeredis` vs a real Redis container: what fidelity do you trade for speed, and which Redis features (Lua scripts, certain eviction policies) might `fakeredis` not model faithfully?
+5. Should integration tests share the application's Redis instance? Explain the blast-radius risk and the isolation principle for test infrastructure.
 
 ---
 
 ### Task 2.9 — Supabase Auth setup
 
-1. What is Supabase Auth and what does it give you out of the box compared to rolling your own auth?
-2. What is a JWT (JSON Web Token)? What are its three parts, and which part contains the user's identity?
-3. What is the difference between the `anon` key and the `service_role` key in Supabase? Which one must never be exposed in frontend code?
-4. Supabase issues a JWT with an expiry (`exp` claim). What happens when the token expires, and what must the client do?
-5. What is the `aud` (audience) claim in a JWT, and why does Supabase include it?
+1. JWT anatomy: three base64url parts (`header.payload.signature`). Which part carries identity (claims like `sub`), and why is it the **signature** — not encryption — that makes the token trustworthy? (JWTs are signed, not secret.)
+2. `anon` vs `service_role` key: which one bypasses Row-Level Security and must never reach the browser? What's the blast radius if `service_role` leaks?
+3. `exp` / `iat` / `nbf` claims: what does the server check on every request, and what does the client do once `exp` passes (refresh-token exchange)?
+4. The `aud` (audience) claim: what attack does validating it prevent (a token minted for another service being replayed at yours)?
+5. Why is "verify the signature with the right key + check `exp` + check `aud`/`iss`" the minimum bar, and what's the classic JWT vulnerability if you accept `alg: none` or fail to pin the algorithm?
 
 ---
 
 ### Task 2.10 — JWT validation FastAPI dependency
 
-1. What is FastAPI's dependency injection system? What is `Depends()` and how does it work?
-2. Write the signature of a `get_current_user` dependency function. What does it receive and what does it return?
-3. What library do you use to decode and verify a JWT in Python, and what three things must you verify?
-4. `get_current_user` raises `HTTPException(status_code=401)`. What HTTP header should the response include per the HTTP spec?
-5. What is the difference between authentication and authorisation? Give an example of each in the context of this game's API.
+1. `Depends(get_current_user)`: how does FastAPI resolve it, cache it **per request**, and inject the result? Why is per-request caching important when several dependencies all need the user?
+2. This `get_current_user` dependency "works" in tests but accepts forged tokens in production:
+   ```python
+   def get_current_user(token: str = Depends(oauth2_scheme)):
+       payload = jwt.decode(token, options={"verify_signature": False})
+       return payload["sub"]
+   ```
+   Find the bug — it's a critical one. Separately, where *should* this function raise `401`?
+3. The three things to verify on the token, and which library (`pyjwt` / `python-jose`). What happens if you skip signature verification?
+4. `401` vs `403`: define authentication vs authorisation, map each to a game scenario (no token vs accessing another user's game), and which header must accompany a `401` (`WWW-Authenticate`)?
+5. Should authorisation (ownership checks) live in this dependency or in the use case? Argue the separation — authN at the edge, authZ next to the resource.
 
 ---
 
 ### Task 2.11 — Supabase Storage bucket setup
 
-1. What is object storage, and how does it differ from storing files in a PostgreSQL `BYTEA` column?
-2. What is a "bucket" in Supabase Storage? What is the difference between a public and a private bucket?
-3. How does a FastAPI route upload a file to Supabase Storage? Describe the flow in 3–4 steps.
-4. What is a pre-signed URL, and when would you use one instead of proxying file downloads through your API?
-5. A save file in Supabase Storage has a key like `saves/{user_id}/{game_id}.json`. What benefits does this key structure give you?
+1. Object storage vs a Postgres `BYTEA` column: why offload large blobs (DB bloat, backup size, cache pressure), and what do you lose (transactional consistency with the row)?
+2. Public vs private bucket for save files: which, and how does a **pre-signed URL** grant time-bounded access without making the bucket public?
+3. Why hand out pre-signed URLs instead of streaming bytes through the FastAPI process (offload bandwidth; avoid blocking the event loop on large transfers)?
+4. Key design `saves/{user_id}/{game_id}.json`: what does the prefix structure give you (listing, per-user scoping, lifecycle rules), and what authorisation check must *still* run server-side?
 
 ---
 
 ## Phase 2 — Summary quiz (10 questions, need 9/10)
 
-1. Explain the repository pattern. Why does `PostgresGameRepository` implement `IGameRepository`, and what would change if you swapped to MongoDB tomorrow?
+1. Explain the repository pattern. Why does `PostgresGameRepository` implement a *domain-defined* port, and what exactly changes (and doesn't) if you swap Postgres for MongoDB?
 
-2. What is the N+1 query problem? Write a SQLAlchemy example that causes it and show how to fix it.
+2. This loop issues hundreds of queries for a handful of dungeons:
+   ```python
+   dungeons = (await session.execute(select(DungeonORM))).scalars().all()
+   for d in dungeons:
+       for floor in d.floors:
+           total = len(floor.enemies)
+   ```
+   Find the anti-pattern and name exactly what triggers it here. How would you *detect* it (query counting in a test, or query logging in observability)?
 
-3. A `Dungeon` domain model has a `List[Floor]` which each have a `List[Enemy]`. Design the PostgreSQL schema (table names, columns, foreign keys) to store this structure. Describe trade-offs vs storing the whole `Dungeon` as JSON.
+3. Design the schema for `Dungeon → Floors → Enemies` (tables, columns, FKs) and compare it to storing the whole dungeon as one JSONB blob. When is each right (queryability vs read-as-a-blob)?
 
-4. Alembic autogenerate creates an empty migration. What are two reasons this might happen?
+4. Isolation levels: name the four, the anomaly each prevents (dirty / non-repeatable / phantom read), and pick the right level for leaderboard reads vs an in-game currency transfer. Where does MVCC fit?
 
-5. Redis goes down in production. The application is currently loading active game state from Redis on every WebSocket message. Describe your fallback strategy and what you would log.
+5. Connection pooling: why does Postgres's process-per-connection model make pooling essential, what's a sane pool-size starting point, and what does PgBouncer **transaction-mode** break (prepared statements, session state, `LISTEN/NOTIFY`)?
 
-6. Describe what happens step-by-step when a request comes in with a JWT Bearer token and how `get_current_user` processes it.
+6. Redis goes down in production while the app reads it on every WebSocket message. Describe your fallback, what you log, and how a circuit breaker stops you hammering a dead Redis.
 
-7. What is the difference between a unit test, an integration test, and an end-to-end test? Give one example of each from Phase 2.
+7. Unit vs integration vs e2e — give one Phase-2 example of each and place them on the test pyramid.
 
-8. Why does this project keep domain dataclasses separate from SQLAlchemy ORM models? Give two concrete problems that would arise if you merged them.
+8. A request arrives with a JWT bearer token. Trace verification step by step (extract → decode → verify signature → check `exp`/`aud` → load user). Where does each failure return `401`?
 
-9. A player's score is saved twice due to a network retry. How would you make `PostgresScoreRepository.save()` idempotent? Write the SQL or describe the approach.
+9. Under a network retry, this `save` creates duplicate leaderboard rows:
+   ```python
+   async def save(self, score: Score) -> None:
+       await self.session.execute(insert(ScoreORM).values(**asdict(score)))
+   ```
+   Find what makes it non-idempotent, and name the single SQL clause (on which unique key) that would fix it. Why is this an at-least-once-delivery defence?
 
-10. What is connection pooling? Configure `asyncpg` connection pool settings for a FastAPI app that receives 200 concurrent requests. What values would you set and why?
+10. Migrations: give the zero-downtime expand/contract sequence for adding a `NOT NULL` column to a live, populated table, and explain why each step is ordered the way it is.
 
 ---
 ---
@@ -378,125 +436,125 @@ a full profile assessment: overall score, strong areas, weak spots, and specific
 
 ### Task 3.1 — `StartGame` use case
 
-1. What is a use case in hexagonal architecture? How is it different from a domain service?
-2. `StartGame` creates a `Dungeon`, saves it to the DB, and caches the first floor in Redis. Write out the steps in order and explain which layer each step belongs to.
-3. Should `StartGame` accept a `user_id: UUID` directly or a `Player` domain object? Why?
-4. What is the `Command` pattern, and does `StartGame` follow it?
-5. `StartGame` calls both `IGameRepository.save()` and `ICachePort.set()`. If the cache write fails after the DB save, what is the state of the system? How would you handle this?
+1. Use case vs domain service: define each (orchestration of ports + domain vs a pure business rule) using `StartGame` and `GameService` as the examples.
+2. Order the steps (create domain `Dungeon` → persist → cache the first floor) and assign each to a layer. Why does the *use case*, not the domain, own this sequence?
+3. `user_id: UUID` vs a `Player` object as input: which, and why does a use case taking primitive identifiers at its boundary aid decoupling from the transport layer?
+4. The DB save succeeds but the cache write fails. What consistency state results, and how do you handle it (cache is rebuildable derived state — don't fail the command)?
+5. Is `StartGame` a **Command** (Command pattern / CQRS write side)? What does modelling writes as explicit commands buy you (a single entry point, audit, queueability)?
 
 ---
 
 ### Task 3.2 — `ProcessTurn` use case
 
-1. `ProcessTurn` loads state from Redis, not from PostgreSQL. Why? What does this imply about the relationship between the cache and the database?
-2. Two requests arrive simultaneously for the same session (e.g., the client sent two moves quickly). What is the race condition risk, and how would you protect against it?
-3. What does `ProcessTurn` return to the WebSocket handler? Describe the structure of the response payload.
-4. Where does `ProcessTurn` persist state after a turn — only Redis, only PostgreSQL, or both? Justify your answer.
-5. `ProcessTurn` detects the player has died. What does it do differently compared to a normal turn?
+1. Why load mid-game state from Redis, not Postgres? What is the cache's role (hot mutable state) vs Postgres's (checkpoints), and what durability risk do you knowingly accept?
+2. Two moves arrive nearly simultaneously for one session. Describe the read-modify-write **race** precisely, then give two fixes (per-session lock, optimistic version check, or a single serialised consumer).
+3. What's in the response payload back to the WS handler, and why a versioned/typed event rather than a raw dict?
+4. Where does state persist after a turn (Redis every turn, Postgres on checkpoints)? Justify the write-amplification trade-off.
+5. The player dies this turn. How does it differ from a normal turn (emit game-over, kick off the submit-score path, stop accepting actions)? Why is this a *state transition*, not just another turn?
 
 ---
 
 ### Task 3.3 — `SubmitScore` use case
 
-1. `SubmitScore` calls `ScoreService.compute()` and then saves the result. Is this correct? What happens if `compute()` is called with a dungeon that isn't finished?
-2. After saving the score, `SubmitScore` triggers a Celery task. Why trigger an async task instead of rebuilding the leaderboard synchronously inside the use case?
-3. How does `SubmitScore` pass the `Dungeon` to the Celery task? (You can't pass the full object — what do you pass instead?)
-4. `SubmitScore` should clean up the active game state from Redis. When exactly should this happen relative to the DB save?
-5. What does "idempotent" mean in the context of `SubmitScore`? How would you make it idempotent?
+1. Why enqueue `score_recalc` to Celery instead of rebuilding the leaderboard inline (latency budget, failure isolation, don't block the request on heavy work)?
+2. You can't hand a `Dungeon` object to a Celery task. What do you pass instead (an id / minimal serialisable payload), and why does this tie back to the JSON-not-pickle serialiser choice?
+3. Idempotent `SubmitScore`: a retried submission must not double-count. What key makes it idempotent, and where do you enforce it (DB unique constraint vs app check)?
+4. Cleaning the Redis game state: before or after the durable DB write? Order it so a crash can never lose an unsaved score.
+5. After submit, the leaderboard is **eventually consistent** (recalc is async). Describe the user-visible window and why it's acceptable here.
 
 ---
 
 ### Task 3.4 — FastAPI app setup
 
-1. What is the FastAPI `lifespan` context manager used for? Give two resources you would initialise and clean up there.
-2. What does `CORSMiddleware` do and why does this project need it?
-3. What is the difference between `APIRouter` and including all routes directly in the `FastAPI()` app object?
-4. What is `Depends()` used for in the context of app-wide dependencies like database sessions?
-5. What is the difference between `@app.on_event("startup")` (deprecated) and the `lifespan` approach? Why was the change made?
+1. The `lifespan` context manager replaces deprecated `on_event`. Which two resources do you init/teardown there (DB engine, Redis pool), and why is startup the right place rather than module import?
+2. ASGI vs WSGI: why does an async, WebSocket-capable app require ASGI, and what can't WSGI do?
+3. Middleware runs LIFO around the handler. Give an ordering bug caused by getting it wrong (e.g. CORS after auth, or an error-logging middleware that never sees handler exceptions).
+4. `Depends()` for a per-request DB session: how does a `yield`-dependency provide setup/teardown, and why is request scope the right lifetime?
+5. CORS: which same-origin restriction does it relax, and why is `allow_origins=["*"]` together with credentials a misconfiguration?
 
 ---
 
 ### Task 3.5 — Auth endpoints
 
-1. `POST /auth/register` receives `email` and `password`. These go to Supabase, not your database. What does your backend return to the client?
-2. What is the difference between `access_token` and `refresh_token`? When should the client use each?
-3. Should your FastAPI backend store passwords? Justify your answer.
-4. What HTTP status code do you return for a failed login due to wrong password, and why is `401` correct while `403` is not?
-5. What is the purpose of the `Authorization: Bearer <token>` header pattern?
+1. `access_token` vs `refresh_token`: their lifetimes, where each is sent, and why short-lived access + long-lived refresh limits the blast radius of a leaked token.
+2. Should the backend store passwords? If you hashed locally, which algorithm family (argon2/bcrypt, never a fast hash) and why salt + slow? Here Supabase owns it — what does that change about your responsibility?
+3. Wrong-password login returns `401`, not `403`. Restate the authN-vs-authZ distinction and why `403` would imply "authenticated but forbidden."
+4. Why is `Authorization: Bearer <token>` preferred over a cookie for an API, and what does that imply about CSRF exposure (a header isn't auto-sent → less CSRF, but more XSS token-theft surface)?
+5. Statelessness: why does putting identity in a *verifiable token* (vs a server-side session) make horizontal scaling easier? Tie to the twelve-factor "stateless processes" rule.
 
 ---
 
 ### Task 3.6–3.8 — Game REST endpoints
 
-1. `POST /game/start` creates a game. What HTTP status code should it return on success — `200 OK` or `201 Created` — and what should the response body contain?
-2. `GET /game/{id}` should return 404 if the game doesn't exist. Where in the stack does this check happen — the router, the use case, or the repository?
-3. `POST /game/{id}/abandon` ends the run. What state changes are required in DB and Redis, and in what order?
-4. What is idempotency? Is `POST /game/{id}/abandon` idempotent? Should it be?
-5. A user requests `GET /game/{id}` for a game that belongs to a different user. What HTTP status code do you return, and what check prevents this?
+1. `POST /game/start`: `201 Created` vs `200 OK`, and what belongs in the body plus the `Location` header when you create a resource?
+2. A missing game returns `404`. Which layer decides this (the use case maps "repo returned `None`" → not-found; the router translates it to HTTP)? Why shouldn't the repository raise HTTP errors?
+3. `POST /game/{id}/abandon`: is it idempotent? *Should* it be? How do `PUT`/`DELETE` idempotency semantics inform the design (a repeat lands in the same state)?
+4. A user requests another user's game: `404` vs `403`? Argue the security trade-off (`404` hides existence). Where does the ownership check live?
+5. `PUT` vs `PATCH` vs `POST` for state changes: map "abandon" to the right method and justify it with the safe/idempotent method definitions.
 
 ---
 
 ### Task 3.9 — WebSocket turn loop
 
-1. What is the lifecycle of a WebSocket connection in Starlette/FastAPI? List the stages from connection request to close.
-2. The client sends `{"action": "move", "direction": "NORTH"}`. Walk through every step from receiving this message to sending the response back.
-3. What happens to the WebSocket connection if `process_turn` raises an unhandled exception? What should your handler do?
-4. How do you authenticate a WebSocket connection? WebSockets don't support custom headers from the browser — what is the standard workaround?
-5. A player closes the browser tab. What happens to the WebSocket on the server side, and how do you detect and clean up a broken connection?
+1. The WS lifecycle in Starlette: list the stages (HTTP `Upgrade` handshake → `accept` → receive/send loop → close). What status code is the upgrade handshake?
+2. Browsers can't set custom headers on a WebSocket. How do you authenticate it (token in query param, first-message auth, or cookie), and what's the trade-off of each (URL logging vs handshake complexity)?
+3. `process_turn` raises mid-connection. What should the handler do (catch, send an error frame, decide close vs continue)? Why must one bad message not silently kill the loop?
+4. The player closes the tab. How does the server detect the dropped connection, and how do you clean up the Redis session state and avoid leaked tasks?
+5. A fast client floods actions. What is **backpressure**, and how do you bound it (single in-flight turn per session, drop/queue policy)?
 
 ---
 
 ### Task 3.10–3.12 — Leaderboard endpoints
 
-1. `GET /leaderboard/global` is served from Redis cache. What is the cache key, and how do you handle a cache miss?
-2. What is a cache stampede, and how does it occur on the leaderboard endpoint if Redis is cold and 1,000 requests arrive at once?
-3. `GET /leaderboard/me` requires authentication. How does your router know the current user's ID without querying the DB?
-4. Should the leaderboard endpoint be paginated? Argue both sides for a top-100 list.
-5. The leaderboard data in Redis is 5 minutes stale. A new high score was just submitted. When will the cache update?
+1. Cache-key design for `/leaderboard/global`, and cache-aside miss handling (recompute → populate → set TTL). What staleness window do you accept?
+2. **Cache stampede** / thundering herd on a cold key with 1,000 concurrent requests: describe it and give two mitigations (single-flight lock, early/jittered recompute).
+3. `/leaderboard/me` needs the user id with no DB hit. How does the verified JWT supply it (identity from claims = stateless)?
+4. Should a top-100 endpoint be paginated? Argue both sides; if you paginate, keyset vs offset and why.
+5. A new high score just landed but the cache is 5-minutes stale. When does it appear, and how would write-through or explicit invalidation change that — at what cost?
 
 ---
 
 ### Task 3.13 — Pydantic v2 schemas
 
-1. What is the difference between a Pydantic model and a SQLAlchemy model? What is each used for?
-2. What does `model_config = ConfigDict(from_attributes=True)` do in a Pydantic v2 model?
-3. Pydantic v2 uses `model_validator` and `field_validator`. What is the difference, and give an example where each is appropriate?
-4. What is the difference between `BaseModel` serialisation (`.model_dump()`) and FastAPI's automatic response serialisation? When would you call `.model_dump()` manually?
-5. A `PlayerResponse` schema should not expose the player's email or internal DB id. How do you control which fields are included/excluded?
+1. Pydantic model vs SQLAlchemy model vs domain dataclass — three distinct roles. Why does the API schema sit at the boundary doing "parse, don't validate"?
+2. `ConfigDict(from_attributes=True)`: what does it enable (object/ORM → schema), and why is it the bridge from domain/ORM objects to response models?
+3. `field_validator` vs `model_validator` (`mode='before'` / `'after'`): give one concrete example of each (a single-field bound check vs a cross-field invariant).
+4. Pydantic v2's Rust core (`pydantic-core`): why is it dramatically faster than v1, and which v1→v2 migration gotchas bite (`.dict()` → `.model_dump()`, the validator API change)?
+5. Hiding `email` / internal id from `PlayerResponse`: a dedicated output schema vs field exclusion on a shared one — why is a separate response schema the safer default (no accidental over-exposure)?
 
 ---
 
 ### Task 3.14–3.15 — Tests
 
-1. What is `TestClient` in FastAPI/Starlette? How does it differ from a real HTTP client in tests?
-2. How do you override a dependency (e.g., `get_current_user`) in FastAPI integration tests?
-3. What library do you use to test WebSocket connections in pytest, and what does an async WebSocket test look like structurally?
-4. What is `pytest.mark.asyncio` and when is it required?
-5. Should integration tests for the API use a real database or a fake repository? What is the trade-off?
+1. `TestClient` (sync, httpx underneath) vs `httpx.AsyncClient`: when do you genuinely need the async client (real async paths, WebSockets), and what does `TestClient` hide?
+2. Overriding `get_current_user` via `app.dependency_overrides`: why is DI-based override cleaner than monkeypatching, and what does it let you test (endpoints without real auth)?
+3. `pytest.mark.asyncio` (or anyio): when is it required, and what's the event-loop-scope pitfall across tests?
+4. Real DB vs fake repository for API tests: state the fidelity-vs-speed trade-off and where you'd draw the line (use-case tests with fakes; a few e2e with real infra).
+5. Testing the WS turn loop: structure of an async WS test (connect → send → assert received event). Why is this closer to e2e than to a unit test?
 
 ---
 
 ## Phase 3 — Summary quiz (10 questions, need 9/10)
 
-1. Draw (in text) the full call stack when a WebSocket message arrives with `{"action": "attack"}`. Start from the WebSocket handler and go all the way down to the domain, then back up.
+1. Trace the full call stack when a WS message arrives with `{"action":"attack"}` — from the WebSocket handler down to the domain and back up. Name each layer and what it does.
 
-2. What is the difference between a use case and a domain service? Use `ProcessTurn` and `GameService` as examples.
+2. Use case vs domain service, using `ProcessTurn` and `GameService` — orchestration vs pure rule.
 
-3. FastAPI uses dependency injection heavily. Explain `Depends()` and give two examples from this project where it is used.
+3. FastAPI leans on dependency injection. Explain `Depends()` (resolution + per-request caching) and give two examples from this project (DB session, current user).
 
-4. A race condition exists in `ProcessTurn` if the client sends two moves quickly. Describe the race, and describe two ways to prevent it at the application level.
+4. The `ProcessTurn` double-move race: describe it precisely and give two application-level preventions (per-session lock, optimistic version).
 
-5. What is Pydantic v2's `model_validator(mode='before')` vs `mode='after'`? Give a concrete example of each from this project.
+5. Map HTTP status codes to: (a) game not found, (b) authenticated request but no token, (c) authenticated but accessing another user's game, (d) DB crash mid-request — and state the principle behind each.
 
-6. `GET /leaderboard/global` must respond in < 50ms. Trace every layer the request touches and explain what makes each layer fast enough.
+6. `/leaderboard/global` must respond in < 50 ms. Trace the layers on a cache hit and explain what keeps each fast; then describe what happens on a miss.
 
-7. What does `lifespan` in FastAPI replace, and why is it preferred? What would you put in the startup and shutdown phases for this project?
+7. Idempotency across the stack: where does it matter (`SubmitScore`, abandon, score save) and what mechanism enforces it at each point?
 
-8. A player submits their score at the exact same time as the weekly Celery reset runs. What is the worst-case outcome, and how would you prevent it?
+8. Describe the full WebSocket authentication flow — from the client opening the connection to the server confirming identity — without custom headers.
 
-9. What HTTP status codes apply to each of these scenarios: (a) game not found, (b) valid request but user not authenticated, (c) authenticated but accessing another user's game, (d) server DB crash mid-request.
+9. Resilience under load: a client floods turns while a downstream is slow. Place each of rate limiting, single-flight, timeout, and circuit breaker where it belongs and say what each protects.
 
-10. Describe the full WebSocket authentication flow — from the client opening a connection to the server confirming the user's identity — without using custom headers.
+10. Pydantic as the boundary: how does "parse, don't validate" at the edge keep invalid data out of the domain, and what does the domain therefore get to *assume*?
 
 ---
 ---
@@ -507,204 +565,231 @@ a full profile assessment: overall score, strong areas, weak spots, and specific
 
 ### Task 4.1 — Celery app setup
 
-1. What is Celery and what problem does it solve that you can't solve with Python's `asyncio`?
-2. What is the difference between a Celery broker and a Celery result backend? What does each store?
-3. Why use Redis as both broker and result backend in this project rather than RabbitMQ?
-4. What is a Celery worker and how does it differ from the FastAPI app process?
-5. What is `task_serializer = "json"` and why should you never use `"pickle"` in a production Celery setup?
+1. What does Celery give you that `asyncio` cannot? Frame it as offloading work to *separate processes/hosts* with durability and scheduling — and connect it to the I/O-bound vs CPU-bound distinction (asyncio helps in-process I/O concurrency; Celery distributes work, including CPU-bound jobs the GIL would otherwise serialise).
+2. Broker vs result backend: what does each store (pending task messages vs return values/state), and why can you run without a result backend?
+3. Redis vs RabbitMQ as the broker: what does Redis trade away (true AMQP routing, stronger delivery guarantees) for operational simplicity here?
+4. The worker process vs the FastAPI process: why keep them separate, and how does that isolate a heavy or blocking job from the request path?
+5. `task_serializer="json"` not `"pickle"`: explain the remote-code-execution risk of unpickling untrusted task payloads, why JSON is the safe default, and what it costs (only JSON-serialisable args).
 
 ---
 
 ### Task 4.2 — `score_recalc` task
 
-1. The `score_recalc` task rebuilds the leaderboard. What does "rebuild" mean concretely — what does it read and what does it write?
-2. Why is `score_recalc` triggered by `SubmitScore` as an async task rather than being called synchronously inline?
-3. What does `@app.task(bind=True)` give you access to inside the task function?
-4. What is task idempotency and why is it critical for `score_recalc`? What happens if it runs twice?
-5. How would you implement retry logic on `score_recalc` if the Redis write fails? Write the decorator.
+1. "Rebuild the leaderboard" — what does it read (score rows) and write (a sorted cache / Redis ZSET)? Why is re-running it safe (idempotent by construction)?
+2. Why offload it asynchronously rather than running it inline in `SubmitScore` (latency budget, failure isolation)?
+3. `@app.task(bind=True)`: what does `self` give you (retry, request id, task state)?
+4. **At-least-once delivery** means the task can run twice. Why must `score_recalc` be idempotent, and what would double execution corrupt if it weren't?
+5. During a Redis outage, this task config makes the outage *worse* across a fleet of workers:
+   ```python
+   @app.task(autoretry_for=(RedisError,), max_retries=3)
+   def score_recalc():
+       ...
+   ```
+   Find what's missing and the failure mode it causes (think synchronised retries / thundering herd).
 
 ---
 
 ### Task 4.3 — `map_generation` task
 
-1. `map_generation` pre-generates floor N+1 while the player is on floor N. Where does the generated `Floor` get stored, and under what key?
-2. What is the risk of running `DungeonGenerator` (BSP) synchronously in the FastAPI request handler for deep floors? Why does this justify a Celery task?
-3. How does the FastAPI request know when the pre-generated floor is ready? Describe the flow.
-4. What happens to the pre-generated floor data if the player dies before descending? When should it be cleaned up?
-5. `map_generation` is called with `game_id` and `floor_index`. How do you make sure only one task per `(game_id, floor_index)` runs, even if triggered twice?
+> *Kept lean — the engineering content here is offload, dedup, and async-result coordination.*
+
+1. CPU-bound BSP for deep floors is offloaded to a worker. Why does running it inline risk blocking, and how does this map to the I/O-bound vs CPU-bound rule (asyncio won't parallelise pure-Python CPU work under the GIL; a separate *process* will)?
+2. Ensuring only one task runs per `(game_id, floor_index)` even if triggered twice: dedup via a lock key or a deterministic task id. Why is true "exactly once" generally unachievable, making "effectively once via idempotency" the real goal?
+3. Where's the result stored, and how does the requester learn it's ready (poll a cache key / pub-sub)? This is the async-result coordination problem.
+4. The player dies before descending, orphaning the pre-generated data. Who cleans it up and via what mechanism, and why is **TTL-based** cleanup more robust than relying on an explicit delete?
 
 ---
 
 ### Task 4.4 — `weekly_leaderboard_reset` task
 
-1. What does the weekly reset need to do? List the steps in order (archive → wipe → notify?).
-2. `weekly_leaderboard_reset` deletes score records. What is the risk if it runs while `score_recalc` is also running?
-3. How do you make `weekly_leaderboard_reset` safe to run even if it crashes halfway through and is retried?
-4. Should this task email users their weekly ranking? Should that logic be in this task or a separate task?
-5. What is Celery Beat and how does it differ from cron? What advantage does it have for a containerised environment?
+1. List the steps in order (archive → wipe → optionally notify). Why archive *before* wiping (no destructive op without a durable copy first)?
+2. A race with a concurrent `score_recalc`: describe the interleaving that corrupts state, then prevent it with a distributed lock (Redis `SET NX`, and the Redlock caveats) or scheduling exclusion.
+3. The task crashes halfway. How do you make it safe to retry (idempotent steps, transactional archive, checkpointing)?
+4. Should it also email users their ranking? Argue Single Responsibility — a separate notification task — and what coupling that avoids.
+5. Celery Beat vs cron: what does Beat give a containerised app (in-app, timezone-aware schedule; no host crontab), and what's the single-Beat-instance constraint?
 
 ---
 
 ### Task 4.5 — Celery Beat schedule
 
-1. What is the `CELERYBEAT_SCHEDULE` configuration? Write a schedule entry that runs `weekly_leaderboard_reset` every Monday at midnight UTC.
-2. Can two Celery Beat instances run simultaneously for the same schedule? What would happen?
-3. What is the difference between `crontab` and `timedelta` schedule types in Celery Beat?
-4. How does Celery Beat persist its schedule state, and what happens if the Beat container restarts?
-5. You want the weekly reset to run at midnight in Poland's timezone (CET/CEST). How do you configure this in Celery Beat?
+1. This Beat entry is supposed to run the reset **weekly** but runs it far more often:
+   ```python
+   beat_schedule = {
+       "weekly-reset": {
+           "task": "tasks.weekly_leaderboard_reset",
+           "schedule": crontab(minute=0, hour=0),
+       }
+   }
+   ```
+   Find the bug. Then explain how Celery interprets the corrected schedule (UTC vs configured timezone).
+2. Two Beat instances on the same schedule → duplicate dispatch. Why must Beat be a singleton, and how do you guarantee that (single replica / leader lock)?
+3. `crontab` vs `timedelta` schedule types: when each fits (wall-clock-aligned vs interval-since-last-run).
+4. How does Beat persist its schedule state, and what happens to a missed run across a Beat restart — does it backfill?
+5. Running at midnight **Warsaw** time (CET/CEST — DST!): how do you configure the timezone, and why is hardcoding `+01:00` a daylight-saving bug?
 
 ---
 
 ### Tasks 4.6–4.7 — Docker Compose + testing
 
-1. Add a Celery worker service to `docker-compose.yml`. What command does it run, and what does it share with the FastAPI service?
-2. How do you test that `SubmitScore` correctly enqueues the `score_recalc` task without running a real Celery worker?
-3. What is `task_always_eager` in Celery, and when would you enable it in tests?
-4. What is the difference between `apply_async()` and `delay()` in Celery?
-5. How do you run a Celery task synchronously in a test without a broker?
+1. A worker service in Compose reuses the app image with a different command and shares the broker and code. Why the *same* image (build once, run many roles)?
+2. Test that `SubmitScore` enqueues `score_recalc` without a real worker: assert on the `.delay`/`apply_async` call (mock the task). You're testing the *interaction*, not the task body — why is that the right seam?
+3. `task_always_eager`: what does it do in tests (run inline, synchronously), and what does eager mode *not* faithfully exercise (serialisation, the broker, real retries)?
+4. `apply_async()` vs `delay()`: the relationship (`delay` is the shortcut) and when you actually need `apply_async` (`eta`, `countdown`, queue routing).
+5. Two ways to test a task without a broker (eager mode vs calling the underlying function directly): the fidelity trade-off between them.
 
 ---
 
 ## Phase 4 — Summary quiz (10 questions, need 9/10)
 
-1. What is the difference between Celery, the Celery worker, and Celery Beat? Draw a simple diagram in text showing how they interact.
+1. Celery vs the Celery worker vs Celery Beat: draw their interaction in text (producer → broker → worker; Beat → broker on schedule).
 
-2. `score_recalc` must be idempotent. Explain what "idempotent" means and describe how you implement it for a leaderboard rebuild.
+2. `score_recalc` must be idempotent. Define idempotent and describe how you implement it for a leaderboard rebuild — and why at-least-once delivery makes it mandatory.
 
-3. A Celery task fails. What are the three outcomes depending on your retry configuration? Write a `@app.task` decorator that retries up to 3 times with exponential backoff.
+3. A task fails. First name the three outcomes depending on retry configuration. Then find the bug in this decorator — it retries things it never should, and never gives up:
+   ```python
+   @app.task(autoretry_for=(Exception,), retry_backoff=True)
+   def score_recalc():
+       ...
+   ```
 
-4. `weekly_leaderboard_reset` runs while `score_recalc` is also running. Describe the race condition and one way to prevent it using Redis.
+4. `weekly_leaderboard_reset` runs while `score_recalc` is running. Describe the race and one prevention using a Redis lock — and mention Redlock's caveats.
 
-5. What is `task_serializer = "json"` and why is `"pickle"` dangerous in production?
+5. `task_serializer="json"` vs `"pickle"`: make the remote-code-execution argument for why pickle is dangerous in production.
 
-6. A Celery worker crashes mid-task. What happens to the task message in the broker? What is task acknowledgement and when does it happen by default?
+6. A worker crashes mid-task. What happens to the message in the broker? Explain task acknowledgement, `acks_late`, and the at-most-once vs at-least-once trade-off (and the duplicate-execution risk).
 
-7. You need to run the weekly reset every Monday at midnight Warsaw time. Write the `crontab` configuration and explain how timezone handling works in Celery Beat.
+7. This schedule is meant to fire at **Warsaw midnight** but fires at the wrong local hour for half the year:
+   ```python
+   # celery config: timezone = "UTC"
+   crontab(minute=0, hour=0, day_of_week="mon")
+   ```
+   Find what's missing and the seasonal (DST) bug that leaving it causes.
 
-8. `map_generation` is triggered when a player descends to floor 5 (to pre-generate floor 6). Describe the entire flow from the WebSocket handler triggering the task to the player receiving floor 6.
+8. `map_generation` pre-generates floor 6 when the player descends to floor 5. Describe the whole flow from the WS handler triggering the task to the player receiving floor 6 (including how readiness is signalled).
 
-9. How do you test a Celery task in pytest without a running broker? Name two approaches and explain the trade-offs.
+9. Test a Celery task with no running broker. Name two approaches (eager mode, direct call) and the trade-offs of each.
 
-10. `score_recalc` reads 10,000 score rows from PostgreSQL to rebuild the leaderboard. This is slow. Describe two optimisation strategies at the query or cache level.
+10. `score_recalc` reads 10,000 rows to rebuild the leaderboard and is slow. Give two optimisations — one at the query level (server-side `ORDER BY ... LIMIT` on an index) and one at the cache level (incremental `ZADD` update instead of a full recompute) — and discuss incremental vs full recompute.
 
 ---
 ---
 
 ## Phase 5 — React frontend
 
+> The backend is the star. These quizzes drill the *transferable* frontend-senior fundamentals —
+> rendering model, hooks, state, data fetching, and web security — and deliberately skip pixel-art and
+> canvas trivia, which carry no senior-engineering signal for your goals.
+
 ---
 
 ### Task 5.1 — Vite + React setup
 
-1. What is Vite and how does it differ from Create React App in development mode?
-2. What is `tsconfig.json` and should you use TypeScript for this project? Give one reason for and one reason against.
-3. What is ESLint in the context of a React project and what does it catch?
-4. What is the purpose of `vite.config.ts`, and what would you configure there for this project (e.g., proxy)?
-5. What is tree-shaking and why does Vite's production build apply it?
+1. Vite's dev server uses native ESM + esbuild. Why is its cold start and HMR faster than CRA's "bundle everything with webpack" model?
+2. **Tree-shaking**: what is it, what enables it (static ES-module imports), and why does it shrink the production bundle?
+3. TypeScript for this project: one strong reason for (a shared, checked WS event contract) and one reason against (overhead/ceremony).
+4. The Vite dev proxy: why proxy `/api` to the backend in development, and which CORS/cookie problem does that sidestep?
 
 ---
 
 ### Task 5.2 — Pixel tile set design
 
-1. What is a sprite sheet and why use one instead of individual image files for tiles?
-2. What does "16×16 tiles" mean for canvas rendering? How does this translate to actual pixel size on a modern 4K screen?
-3. What is `imageSmoothingEnabled = false` on a canvas context, and why is it essential for pixel art?
-4. What colour format does a GBA-style 4-colour palette use, and why does limiting colours give pixel art a retro feel?
-5. How would you represent the tile set in the frontend codebase — as a single image file, individual PNGs, or an SVG sprite? Justify your choice.
+> *Trimmed to the single transferable idea.*
+
+1. A sprite sheet packs many tiles into one image. State the one engineering reason that generalises beyond games — request batching / a single decode — and name another place the *same* principle shows up (e.g. GraphQL DataLoader batching, HTTP/2 multiplexing, DB batch fetching).
 
 ---
 
 ### Task 5.3 — Canvas renderer
 
-1. What is the difference between `canvas` and SVG for game rendering? Why is `canvas` the right choice here?
-2. `drawImage(spriteSheet, sx, sy, sWidth, sHeight, dx, dy, dWidth, dHeight)` — what do each of the coordinates represent?
-3. How do you clear the canvas between frames? What happens if you don't?
-4. The `Floor` arrives from the backend as a JSON grid. What is the render loop — how do you iterate the grid and draw tiles?
-5. What is `requestAnimationFrame` and why use it instead of `setInterval` for game rendering?
+> *Trimmed to the rendering-loop and separation-of-concerns ideas.*
+
+1. `requestAnimationFrame` vs `setInterval`: why does rAF align with the display refresh and pause on a hidden tab, and how is "let the platform schedule the work" a general performance principle?
+2. Why decouple *rendering* (draw from current state) from *state updates* (game events)? Relate it to React's "UI is a function of state" model and to separating a read model from a write model.
 
 ---
 
 ### Task 5.4–5.5 — Sprites and animation
 
-1. What is frame-based animation, and how would you implement a 4-frame walking animation for the player sprite?
-2. What is `performance.now()` and how do you use it to make animations frame-rate independent?
-3. Why should game animation state (current frame, last frame time) live in a React `ref` rather than `state`?
-4. How do you animate an enemy moving from tile (3,4) to (3,5) smoothly rather than teleporting?
-5. What is a "sprite atlas" and how does it reduce HTTP requests compared to individual sprite images?
+> *Trimmed to the one React fundamental it teaches.*
+
+1. Per-frame animation state (current frame, last-frame time) belongs in a `useRef`, not `useState`. Why? (Mutating it must *not* trigger a re-render.) State the general rule: `ref` for mutable values that shouldn't cause renders, `state` for values the UI is derived from.
 
 ---
 
 ### Task 5.6 — `useGameSocket` hook
 
-1. What is a custom React hook and what rules must it follow?
-2. Why should the WebSocket connection be managed inside a `useEffect` with a cleanup function?
-3. The WebSocket receives a game state update. How do you update React state to trigger a re-render of the game canvas?
-4. What is `useRef` and when would you use it inside `useGameSocket` rather than `useState`?
-5. `useGameSocket` exposes `sendAction(action)`. How do you prevent the function reference from changing on every render (causing unnecessary effect re-runs)?
+1. The two **Rules of Hooks** (top level only; only in React functions) — and *why* they exist (hook identity is positional: call order must be stable across renders).
+2. The WS lifecycle in a `useEffect` with cleanup: why must the cleanup close the socket, and what bug does a missing cleanup cause (leaked sockets, double-connect under StrictMode)?
+3. A state update arrives → a re-render is triggered. How does setting state propagate, and how do you avoid re-rendering the whole tree on every ~10 Hz update (memoisation, state colocation, splitting components)?
+4. `useRef` vs `useState` inside the hook: which holds the socket instance and why (stable identity, no re-render when it changes)?
+5. `sendAction` stability via `useCallback`: why does an unstable function reference cause effect re-runs and child re-renders, and how does `useCallback` fix it?
 
 ---
 
 ### Task 5.7 — Keyboard input handler
 
-1. What is the difference between `keydown` and `keyup` events? Which do you use for movement input in a turn-based game?
-2. Why attach the keyboard listener to `document` rather than to the canvas element?
-3. How do you prevent keyboard input from triggering during text input (e.g., the login form)?
-4. What is `event.preventDefault()` and when should you call it for game keyboard events?
-5. A player presses WASD rapidly. How do you prevent queuing multiple actions before the server responds to the first?
+1. `keydown` vs `keyup` for turn-based input — which, and how do you stop OS key-repeat from firing many turns from one held key?
+2. Why register the listener in a `useEffect` (on `document`) with a cleanup, and what leaks if you don't remove it?
+3. Gating input during text entry (the login form): how do you ignore game keys when an input element is focused (check the event target)?
+4. Preventing an action flood before the server acknowledges the first — single-flight / disable-until-ack. Note this is the *same* backpressure idea as on the server side.
 
 ---
 
 ### Task 5.8–5.9 — HUD and game over screen
 
-1. Should the HUD be rendered on the canvas or as HTML elements over the canvas? What are the trade-offs?
-2. `HP` is a value from 0 to 100. Describe how you would render a pixel-art-style HP bar on the canvas.
-3. What React state shape would you use to store the current game state received from the WebSocket?
-4. The game over screen appears when `event.type === "game_over"`. Where does this transition logic live — in `useGameSocket`, a state machine, or a component?
-5. What is a "flash of unstyled content" (FOUC) and how do you prevent it when transitioning from the game screen to the game over screen?
+1. State shape for incoming game state: why one normalised object over many separate `useState` calls, and how does that avoid inconsistent partial updates?
+2. Model the game-over transition (`event.type === "game_over"`) as an explicit **state machine**. Why are named states better than scattered booleans (`isDead`, `isPlaying`, `isOver`)?
+3. HUD as HTML-over-canvas vs drawn-on-canvas: the trade-off (accessibility, layout, crisp text vs a single render surface). Which fits a backend-focused portfolio app, and why?
 
 ---
 
 ### Task 5.10–5.11 — Leaderboard and auth screens
 
-1. `GET /leaderboard/global` is a REST endpoint. What React pattern do you use to fetch and display this data, and how do you handle loading and error states?
-2. What is `SWR` or `React Query`, and what problem do they solve compared to raw `useEffect` + `fetch`?
-3. The auth screen stores the JWT in the browser. Where should you store it — `localStorage`, `sessionStorage`, or an in-memory variable — and what are the security trade-offs of each?
-4. What is an XSS (Cross-Site Scripting) attack, and how does storing the JWT in `localStorage` make it vulnerable?
-5. What is a `PrivateRoute` (or route guard) in React and how would you implement one?
+1. Fetching `/leaderboard/global`: raw `useEffect` + `fetch` vs React Query / SWR — what do the libraries solve (caching, request dedup, stale-while-revalidate, retries)?
+2. Handling loading / error / empty states explicitly: why is "render only the happy path" a classic junior bug, and how do these states map to the request lifecycle?
+3. JWT storage — `localStorage` vs `sessionStorage` vs an in-memory variable: rank them by XSS exposure and explain the trade-off against persistence/refresh UX.
+4. XSS vs CSRF: define both, say which threatens a `localStorage` JWT and which threatens cookie auth, and give the mitigation for each (CSP/output-escaping vs `SameSite`/anti-CSRF tokens).
+5. A `PrivateRoute` (route guard): how does it redirect unauthenticated users, and why is client-side guarding *UX only* — what must the server still enforce?
 
 ---
 
 ### Task 5.12 — Supabase JWT auth flow
 
-1. Describe the full auth flow from the user clicking "Login" to being able to send authenticated WebSocket messages.
-2. What is `supabase.auth.getSession()` and when would you call it?
-3. The JWT expires while the user is mid-game. What should happen? How does your frontend detect and handle token expiry?
-4. What is `supabase.auth.onAuthStateChange()` and when is it useful?
-5. How do you attach the JWT to a WebSocket connection (browsers don't support custom headers)?
+1. Walk the end-to-end flow: login → store session → attach the token to API/WS calls → refresh on expiry.
+2. The token expires mid-game. How does the client detect it (`401`, `onAuthStateChange`, or an `exp` check) and recover **without losing game progress**?
+3. Attaching a JWT to a WebSocket without custom headers — the same query-param / first-message options as the backend task. Which is least bad, and why?
+4. Why is client-side auth state never the security boundary? What does the server independently verify on every request and every WS message?
 
 ---
 
 ## Phase 5 — Summary quiz (10 questions, need 9/10)
 
-1. Explain the React rendering model. When does a component re-render, and how do you prevent unnecessary re-renders in a game that receives WebSocket updates 10× per second?
+1. Explain React's rendering model: when does a component re-render, and how do you keep a ~10 Hz WebSocket feed from re-rendering the whole world (memoisation, refs, state colocation, component splitting)?
 
-2. What is the difference between `useState`, `useRef`, and `useReducer`? Give an example use case for each from this game.
+2. `useState` vs `useRef` vs `useReducer`: give one game example of each (HP display / the socket instance / complex turn state).
 
-3. Describe how you would implement the complete WebSocket connection lifecycle in a custom hook: connect on mount, send actions, receive events, reconnect on drop, disconnect on unmount.
+3. This hook connects fine but leaks a socket on every re-render/remount (and double-connects under StrictMode):
+   ```jsx
+   useEffect(() => {
+     const ws = new WebSocket(url);
+     ws.onmessage = (e) => setState(JSON.parse(e.data));
+   }, [url]);
+   ```
+   Find the bug. Separately: why reconnect with *backoff* rather than immediately?
 
-4. Canvas vs HTML for the game HUD — argue both sides and give your final decision.
+4. JWT storage security: rank `localStorage` / `sessionStorage` / in-memory by XSS blast radius and give your decision with reasoning.
 
-5. A player is on a leaderboard with 10,000 entries. How would you implement infinite scroll / pagination in the React component? What API changes would be needed?
+5. `useCallback` and `useMemo`: give one concrete `useGameSocket` example where each prevents a real performance bug — and note why *over*-memoising is itself a smell.
 
-6. The JWT expires mid-game. Describe the exact sequence of events: what the frontend detects, what it does, and how the game continues without the player losing progress.
+6. XSS and CSRF: which one is the real risk for this app's bearer-token model, and what's the mitigation (CSP, escaping, keeping the token out of script-readable storage)?
 
-7. What is `useCallback` and `useMemo`? Show one concrete example from `useGameSocket` where each would prevent a performance problem.
+7. Data fetching: what do React Query / SWR give you over `useEffect` + `fetch`, mapped onto the request lifecycle (loading / error / stale / refetch)?
 
-8. How does pixel-art rendering differ from regular web rendering? What two canvas settings are essential for crisp pixel art?
+8. "UI is a function of state": how does that principle simplify reasoning, and where does the imperative canvas escape hatch (refs) fit without breaking it?
 
-9. The game receives a WebSocket message every turn. Describe the data flow from WebSocket event → React state update → canvas re-render. What triggers the canvas draw?
+9. Client guards vs server authorisation: why is `PrivateRoute` UX-only and the server the real boundary?
 
-10. What is XSS and CSRF? Which one is a risk for this game's JWT handling, and what is the mitigation?
+10. The token expires mid-game: give the exact sequence to refresh and continue without the player losing progress, and why optimistic local state + server reconciliation helps.
 
 ---
 ---
@@ -715,95 +800,105 @@ a full profile assessment: overall score, strong areas, weak spots, and specific
 
 ### Task 6.1–6.2 — Dockerfiles
 
-1. What is a multi-stage Docker build and why does it produce a smaller final image?
-2. Why copy `requirements.txt` before copying the rest of the source code? What caching benefit does this give?
-3. What is the difference between `CMD` and `ENTRYPOINT` in a Dockerfile?
-4. The Celery worker uses the same Docker image as the FastAPI app but a different `CMD`. What does the Celery CMD look like?
-5. What does `--no-cache-dir` do in `pip install`, and why use it in a Docker build?
+1. Multi-stage build: how does a builder stage plus a slim runtime stage shrink the final image *and* reduce attack surface (no build toolchain in production)?
+2. Why copy `pyproject.toml`/`uv.lock` before the source? Explain Docker layer caching and why dependency install shouldn't re-run on every source edit.
+3. `CMD` vs `ENTRYPOINT`: the difference, and how the Celery image reuses the same image with only a different command.
+4. `--no-cache-dir`, not running as root, pinning the base image by digest — give the production-hygiene reason for each.
+5. Reproducible builds: why do `uv sync --frozen` + a pinned `.python-version` matter for "behaves identically in CI and prod"?
 
 ---
 
 ### Task 6.3 — `docker-compose.prod.yml`
 
-1. What changes between `docker-compose.yml` (dev) and `docker-compose.prod.yml`? List at least 4 differences.
-2. What is `gunicorn` and why use it in production instead of `uvicorn` alone?
-3. What is the recommended `gunicorn` command for a FastAPI/ASGI app, and how many workers should you configure?
-4. What is a Docker health check and how would you add one to the FastAPI service?
-5. What does `restart: always` do in a Compose file, and what are its limitations?
+1. List four dev→prod differences (no hot reload, gunicorn-managed uvicorn workers, secrets from a store not the file, resource limits, healthchecks).
+2. Why run `gunicorn` managing `uvicorn` workers in production (process supervision, multi-core) rather than a lone `uvicorn`? How many workers — and what's the async caveat (workers × one event loop each)?
+3. A Docker healthcheck for FastAPI: which endpoint, and how does the orchestrator use the result (restart, remove from routing)?
+4. `restart: always` limits — what it won't fix (crash loops, bad config), and why an orchestrator (ECS) supersedes it in real production.
+5. Twelve-factor config: why config via environment, not baked into the image, and how that lets one image run in every environment.
 
 ---
 
 ### Task 6.4 — GitHub Actions CI
 
-1. What is a GitHub Actions workflow and what triggers it? What file structure does it use?
-2. What is the difference between a job and a step in a workflow?
-3. What does `actions/cache` help with in a Python CI workflow?
-4. What is `mypy` and why would you add it to CI alongside `pytest`?
-5. What is the difference between `ruff` and `black` as linting/formatting tools?
+1. Workflow / job / step anatomy and triggers. What does the `preflight` skip-jobs pattern buy you (merging the pipelines before the code exists)?
+2. `actions/cache` for the uv/venv: what does it speed up, and what's the cache-key correctness concern (key off the lockfile hash)?
+3. Why gate on ruff + black + mypy + pytest coverage ≥ 80%? What does each catch, and how does mypy on `src` help enforce the "no `Any` in domain" rule?
+4. Postgres/Redis service containers in CI: how do integration tests reach them, and why is this closer to production than mocking?
+5. Fail-fast vs run-all in a matrix: the trade-off, and why **required status checks** are what actually protect `main`.
 
 ---
 
 ### Task 6.5 — AWS VPC setup
 
-1. What is a VPC (Virtual Private Cloud) and why does every production AWS deployment need one?
-2. What is the difference between a public subnet and a private subnet in AWS?
-3. What is a NAT Gateway and when is it required?
-4. What is a Security Group and how does it differ from a Network ACL?
-5. Your FastAPI ECS task needs to reach the RDS database. Describe the security group rules required.
+1. VPC: why every production deploy needs network isolation, and what makes a subnet public vs private (a route to an internet gateway).
+2. NAT Gateway: why private-subnet tasks need it for *outbound* calls (pulling images, reaching Supabase) without being publicly reachable.
+3. Security Group (stateful) vs Network ACL (stateless): the difference, and why SGs are the primary control you reach for.
+4. SG rules for ECS → RDS: state the exact rule (allow `5432` *from the app's SG*, not from a CIDR) and why referencing SGs beats IP ranges (least privilege, elasticity).
+5. Why put RDS and ElastiCache in private subnets with no public IP — the defense-in-depth / blast-radius argument.
 
 ---
 
 ### Task 6.6–6.7 — RDS + ElastiCache
 
-1. What is the difference between RDS PostgreSQL and a self-managed PostgreSQL on EC2?
-2. What is Multi-AZ in RDS and what failure does it protect against?
-3. What is an RDS parameter group and give one setting you would change for a game workload?
-4. What is ElastiCache Redis and how does it differ from running Redis in a Docker container?
-5. What is a Redis cluster mode and when would you enable it?
+1. RDS vs self-managed Postgres on EC2: what AWS operates for you (backups, patching, failover) and what you give up (superuser, arbitrary extensions).
+2. Multi-AZ: which failure it covers (an AZ/instance failure via standby failover) and what it does *not* do (it's HA, not read scaling — that's read replicas).
+3. One RDS parameter-group setting you'd tune for this workload (e.g. `max_connections` relative to your pooler, or `work_mem`) and why.
+4. ElastiCache vs Redis-in-a-container: managed failover, backups, in-VPC placement — and what durability you should (not) expect from a cache.
+5. Redis cluster mode: when sharding across nodes is warranted vs a single primary + replica, and the multi-key-operation constraint sharding introduces.
 
 ---
 
 ### Task 6.8–6.9 — ECS Fargate + ALB
 
-1. What is ECS Fargate and how does it differ from ECS on EC2?
-2. What is a Task Definition in ECS, and what does it specify?
-3. What is the difference between an ECS Service and a standalone ECS Task?
-4. What is an ALB (Application Load Balancer) and what Layer does it operate on?
-5. How does the ALB route WebSocket upgrade requests to ECS tasks? What must be configured?
+1. Fargate vs ECS-on-EC2: serverless containers (no node management) vs the control/cost trade-off.
+2. A Task Definition's contents (image, CPU/memory, env/secrets, ports) — why it's the immutable unit of deployment.
+3. An ECS **Service** vs a standalone **Task**: desired-count / self-healing / rolling deploys vs a one-shot run.
+4. An ALB operates at **Layer 7**. What does L7 enable (path routing, host headers, TLS termination) that an L4 NLB can't?
+5. WebSockets through an ALB: what must be configured (HTTP/1.1 `Upgrade` support, a longer idle timeout, maybe stickiness), and why do long-lived connections complicate scale-in?
 
 ---
 
 ### Task 6.10–6.11 — CD + HTTPS
 
-1. What does a GitHub Actions CD pipeline for ECS look like? List the steps from code merge to running container.
-2. What is ECR (Elastic Container Registry) and why use it over Docker Hub for AWS deployments?
-3. What is ACM (AWS Certificate Manager) and how do you attach a certificate to an ALB?
-4. What is Route 53 and what record type would you create to point `hexcrawl.com` at the ALB?
-5. What is the difference between HTTPS termination at the ALB vs end-to-end TLS?
+1. The CD pipeline from merge to running task: build → push to ECR → register a new task def → update the service → wait for healthy → roll back on failure.
+2. ECR vs Docker Hub for AWS: IAM-based auth, same-region pull speed, and avoiding Docker Hub rate limits.
+3. An ACM certificate on the ALB: TLS terminates at the load balancer — what's encrypted where, and what's the end-to-end-TLS (re-encrypt to the task) alternative and its trade-off?
+4. A Route 53 record pointing `hexcrawl.com` at the ALB: alias `A` record vs `CNAME` — why an alias for an AWS resource?
+5. Injecting `DATABASE_URL` at runtime: Secrets Manager / SSM vs plaintext in the task-definition env. Why does the plaintext route leak (visible in the console/API), and why is the secret store the secure path? Tie it to twelve-factor config + least privilege.
 
 ---
 
 ## Phase 6 — Summary quiz (10 questions, need 9/10)
 
-1. Describe the full AWS architecture for HexCrawl in production. Name every AWS service used and explain its role.
+1. Describe the full production AWS architecture for HexCrawl: name every service (VPC, subnets, NAT, ALB, ECS Fargate, ECR, RDS, ElastiCache, ACM, Route 53, Secrets Manager, CloudWatch) and its role.
 
-2. What is a multi-stage Docker build? Write out a `Dockerfile` sketch (not every line — just the stages) for the FastAPI app.
+2. This Dockerfile builds correctly but reinstalls every dependency on every code change:
+   ```dockerfile
+   FROM python:3.12 AS builder
+   WORKDIR /app
+   COPY . .
+   RUN uv sync --frozen
+   FROM python:3.12-slim
+   COPY --from=builder /app /app
+   CMD ["uvicorn", "src.entrypoints.http.main:app", "--host", "0.0.0.0"]
+   ```
+   Find the line that defeats Docker layer caching and explain the fix. Separately, why is the two-stage split smaller and safer than a single stage?
 
-3. A deployment fails and the new ECS task crashes on startup. How do you investigate? What AWS tools do you use?
+3. A new ECS task crash-loops on deploy. How do you investigate? Order the tools: CloudWatch logs, the task stopped-reason, health-check config, exec-into-task.
 
-4. What is a VPC, and why do you place RDS and ElastiCache in private subnets?
+4. Why place RDS and ElastiCache in private subnets — the defense-in-depth argument.
 
-5. GitHub Actions triggers on merge to `main`. What are the steps in your CD pipeline from push to running ECS task?
+5. CD triggers on merge to `main`. List the ordered steps from push to a running ECS task, including rollback.
 
-6. What is the difference between RDS Multi-AZ and a Read Replica? When would you use each?
+6. RDS Multi-AZ vs a read replica: different problems (HA vs read scaling). When would you use each?
 
-7. The ALB health check is failing. What are the three most common causes, and how do you diagnose each?
+7. The ALB health check is failing. Give the three most common causes (wrong path, SG blocking the LB, slow start / port mismatch) and how to diagnose each.
 
-8. Your ECS task needs the `DATABASE_URL` secret at runtime. Describe two ways to inject it, and explain why environment variables in the task definition are not the secure choice.
+8. Your ECS task needs `DATABASE_URL` at runtime. Describe two ways to inject it and explain why plaintext env in the task definition is the insecure choice.
 
-9. What is the difference between horizontal and vertical scaling? How does ECS Fargate auto-scaling implement horizontal scaling for the HexCrawl API?
+9. Horizontal vs vertical scaling: define both, and explain how Fargate service auto-scaling implements horizontal scaling (target tracking on CPU / request count).
 
-10. WebSocket connections drop when ECS scales in (removes a task). Describe this problem and two ways to mitigate it.
+10. WebSocket connections drop when ECS scales in (removes a task). Describe the problem and two mitigations (connection draining, client reconnect-with-backoff), and why stateless servers + external session state (Redis) make this survivable.
 
 ---
 
