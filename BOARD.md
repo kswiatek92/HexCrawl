@@ -41,7 +41,7 @@ Assignees: `K` = Krzysztof · `?` = unassigned / open for collaborator
 | 1.17 | Unit tests for `GameService` | ✅ | 🏆 | K | No fake needed — `process_turn` takes no ports (see QUESTIONS.md 1.16) |
 | 1.18 | `ScoreService.compute()` | ✅ | 🏆 | K | |
 | 1.19 | Unit tests for `ScoreService` | ✅ | 🏆 | K | |
-| 📝 | **Phase 1 quiz** | — | ⬜ | K | Must pass before Phase 2 |
+| 📝 | **Phase 1 quiz** | — | 🏆 | K | Must pass before Phase 2 |
 
 ---
 
