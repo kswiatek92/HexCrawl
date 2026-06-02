@@ -76,11 +76,11 @@ Rules:
 
 ## Phase 2 — Persistence adapters
 
-- [ ] Integration test runner — `testcontainers-python` or `pytest-docker`? (task 2.6, 2.8)
-- [ ] Supabase — cloud project from day one, or local `supabase-cli` stack for dev? (task 2.9)
-- [ ] Active game state schema — one row per session with a JSONB blob, or fully relational? (task 2.3)
-- [ ] JWT refresh-token flow — Supabase SDK on frontend only, or does the backend rotate too? (task 2.10)
-- [ ] Alembic naming convention for constraints/indexes — set in `env.py` now? (task 2.2)
+- [x] Integration test runner — `testcontainers-python` or `pytest-docker`? (task 2.6, 2.8) → `testcontainers-python` — already named in CLAUDE.md testing strategy; programmatic per-test container control + automatic cleanup, not tied to a compose file.
+- [x] Supabase — cloud project from day one, or local `supabase-cli` stack for dev? (task 2.9) → Cloud project from day one (free tier) for Auth/Storage only; game Postgres + Redis stay local in docker-compose. Avoids running the heavy ~10-container local supabase stack.
+- [x] Active game state schema — one row per session with a JSONB blob, or fully relational? (task 2.3) → One row per session, JSONB blob. Active state lives in Redis; Postgres only stores the whole-Dungeon snapshot on game-over/checkpoint and reads it back wholesale (read-as-a-blob). Score/leaderboard stays relational separately.
+- [x] JWT refresh-token flow — Supabase SDK on frontend only, or does the backend rotate too? (task 2.10) → Supabase SDK on frontend only. Backend is a stateless resource server that only verifies access-token JWTs (signature + exp + aud) and never sees refresh tokens.
+- [x] Alembic naming convention for constraints/indexes — set in `env.py` now? (task 2.2) → Yes — define a `naming_convention` on the SQLAlchemy MetaData and wire it through Alembic's `env.py` from the first migration, to keep autogenerate diffs and downgrades stable.
 
 ---
 
