@@ -1,0 +1,34 @@
+# Local development backing services. App/uvicorn + Celery run on the host via `uv`.
+# Dev-only credentials — never reuse in any deployed environment.
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: hexcrawl
+      POSTGRES_PASSWORD: hexcrawl
+      POSTGRES_DB: hexcrawl
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data   # named volume → data survives `docker compose down`
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hexcrawl -d hexcrawl"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    # No volume: Redis here is an ephemeral cache / active-session store (rebuildable).
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  pgdata:
