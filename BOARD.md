@@ -50,7 +50,7 @@ Assignees: `K` = Krzysztof · `?` = unassigned / open for collaborator
 
 | # | Task | Status | Quiz | Who | Notes |
 |---|------|--------|------|-----|-------|
-| 2.1 | `docker-compose.yml` (postgres, redis) | 🔲 | ⬜ | K | |
+| 2.1 | `docker-compose.yml` (postgres, redis) | 🔄 | ⬜ | K | |
 | 2.2 | Alembic setup + initial migration | 🔲 | ⬜ | K | |
 | 2.3 | SQLAlchemy ORM models | 🔲 | ⬜ | K | Separate from domain dataclasses |
 | 2.4 | `PostgresGameRepository` | 🔲 | ⬜ | K | implements IGameRepository |
