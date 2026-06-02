@@ -8,7 +8,7 @@ services:
       POSTGRES_PASSWORD: hexcrawl
       POSTGRES_DB: hexcrawl
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"   # loopback only — host app reaches it via localhost; not exposed to the LAN
     volumes:
       - pgdata:/var/lib/postgresql/data   # named volume → data survives `docker compose down`
     healthcheck:
@@ -21,7 +21,7 @@ services:
   redis:
     image: redis:7-alpine
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"   # loopback only — host app reaches it via localhost; not exposed to the LAN
     # No volume: Redis here is an ephemeral cache / active-session store (rebuildable).
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
