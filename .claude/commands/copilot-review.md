@@ -101,11 +101,35 @@ After pushing (or immediately if no push was needed), poll the PR's CI status:
    - Apply fixes, then **commit and push again** (go back to Phase 3 for the new commit).
    - Re-check CI. Repeat up to **3 fix cycles**. If still failing after 3 cycles, stop and summarize what remains broken for the user to investigate manually.
 
+## Phase 5: Offer to update `SENIOR_BRIEF.md`
+
+If the session surfaced a *named senior-dev concept* the user engaged with — not project trivia — offer to append it to `SENIOR_BRIEF.md` at the repo root.
+
+**When to offer:**
+- The session named at least one general engineering concept (not project-specific implementation detail).
+- For a quiz-style skill: at least one answer was 🟡 or ❌. A perfect run produces nothing worth saving.
+- For a coaching-style skill: the user asked about (or I taught) a named concept, not just file navigation.
+
+**How to offer (single short prompt — not a multi-option ceremony):**
+> "Want me to add `<concept>` to `SENIOR_BRIEF.md` so it sticks?"
+
+**Insertion shape (per the brief's own maintenance rules):**
+1. Read `SENIOR_BRIEF.md`.
+2. For each accepted concept:
+   - Insert under a fitting section family, or create a new numbered section before "Vocabulary cheat-sheet".
+   - Heading → 1–2 sentences definition → "Why it matters" → "Code-review tell" → reference (optional). Cap ~5–7 lines.
+   - Add a one-line entry to the vocabulary cheat-sheet.
+3. Don't rewrite existing entries; the brief is the user's.
+4. Don't commit — leave the change staged for the user to review.
+
+If the file doesn't exist yet, create it using the maintenance-header shape it documents for itself.
+
 ## Rules
 
 - **Never force-push** (`git push --force`). Always create new commits.
 - **Never skip hooks** (`--no-verify`). Fix the root cause.
 - **Never modify `BOARD.md` or `CLAUDE.md`** in this flow — this skill is CI-scoped only.
+- **`SENIOR_BRIEF.md` is the one consent-gated exception** to the CI-scoped rule: with the user's explicit yes (Phase 5) you may append to it, but it is **never committed or pushed** by this flow (which otherwise auto-commits and pushes) — leave it staged for the user.
 - **Never cross the hexagonal boundary** to make a Copilot suggestion work. If the only way to apply a suggestion is to import a framework into `domain/` or `application/`, reject the suggestion and note it in the report.
 - **Always confirm before applying code changes** (Phase 2 step 4). The push and fix cycles (Phases 3–4) are automatic after user approval.
 - **Respect project conventions.** If a Copilot suggestion conflicts with `CLAUDE.md` decisions, reject it and explain why.

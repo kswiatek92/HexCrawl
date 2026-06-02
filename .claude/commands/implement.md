@@ -20,6 +20,7 @@ This command produces:
 - Give opinions about code quality or architecture unless the user asks — produce the deliverables.
 - Do git branch setup — that's `/pickup`'s job. Work on whatever branch you're already on.
 - Mark the quiz cell (`🏆` / `🔁`) on `BOARD.md` — quiz state is owned by `/quiz`.
+- Auto-update or commit `SENIOR_BRIEF.md`. It's the one consent-gated exception: only append to it with the user's explicit yes (see "Offer to update `SENIOR_BRIEF.md`"), and leave that change staged — never fold it into a task commit.
 
 **Phase restrictions on tools:**
 - **Pre-flight & Context Gathering phase:** Read, Glob, Grep only (no Edit, Write, Bash except git status/log/diff/branch).
@@ -183,6 +184,29 @@ After implementation, testing, and verification are all complete:
    - An existing rule was clarified because of an ambiguity you hit.
    - A new cross-cutting contract was introduced (new port, new event type).
    Do not add narration of what you implemented — `CLAUDE.md` is an instruction file, not a changelog.
+
+## Offer to update `SENIOR_BRIEF.md`
+
+If the session surfaced a *named senior-dev concept* the user engaged with — not project trivia — offer to append it to `SENIOR_BRIEF.md` at the repo root.
+
+**When to offer:**
+- The session named at least one general engineering concept (not project-specific implementation detail).
+- For a quiz-style skill: at least one answer was 🟡 or ❌. A perfect run produces nothing worth saving.
+- For a coaching-style skill: the user asked about (or I taught) a named concept, not just file navigation.
+
+**How to offer (single short prompt — not a multi-option ceremony):**
+> "Want me to add `<concept>` to `SENIOR_BRIEF.md` so it sticks?"
+
+**Insertion shape (per the brief's own maintenance rules):**
+1. Read `SENIOR_BRIEF.md`.
+2. For each accepted concept:
+   - Insert under a fitting section family, or create a new numbered section before "Vocabulary cheat-sheet".
+   - Heading → 1–2 sentences definition → "Why it matters" → "Code-review tell" → reference (optional). Cap ~5–7 lines.
+   - Add a one-line entry to the vocabulary cheat-sheet.
+3. Don't rewrite existing entries; the brief is the user's.
+4. Don't commit — leave the change staged for the user to review.
+
+If the file doesn't exist yet, create it using the maintenance-header shape it documents for itself.
 
 ## Final Summary
 
