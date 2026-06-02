@@ -12,6 +12,98 @@ Entries are append-only. If a decision is reversed, add a new entry that superse
 
 ---
 
+## 0004 — Alembic: `Settings`-sourced URL + empty baseline migration
+
+**Date:** 2026-06-02
+**Status:** Accepted
+**Scope:** `alembic.ini`, `alembic/env.py`, `alembic/versions/`, and
+`src/adapters/db/base.py`. Sets the migration-workflow conventions for all of
+Phase 2 (tasks 2.3–2.5) and every migration thereafter.
+
+### Context
+
+Task 2.2 stands up Alembic before any ORM models (2.3) or repositories
+(2.4/2.5) exist. Two non-obvious calls had to be made to wire it up, and both
+shape every later migration, so they get a durable home here:
+
+1. **Where does the connection string come from?** Alembic's scaffold puts a
+   literal `sqlalchemy.url` in `alembic.ini`. The app already has one config
+   home (`src/config.Settings`, pydantic-settings, env/`.env`), and the URL is
+   a credential.
+2. **What does the "initial migration" contain** when there are no models to
+   diff against? Autogenerate has nothing to compare `Base.metadata` to yet.
+
+The async-engine half of the setup (`run_sync` bridge) is *not* re-litigated
+here — it's the direct consequence of [ADR-0003](#0003--asyncio-end-to-end-in-adapters-and-entrypoints-sync-domain-cpu-work-to-celery)
+(adapters are async, asyncpg). This ADR is only about the two calls above.
+
+### Decision
+
+1. **`env.py` sources the DB URL from `Settings`, not `alembic.ini`.**
+   `alembic.ini`'s `sqlalchemy.url` is left blank; `env.py` calls
+   `config.set_main_option("sqlalchemy.url", Settings().database_url)` at
+   import. One source of truth, and no credential committed to the repo.
+2. **`target_metadata = Base.metadata`**, where `Base` (with the naming
+   convention — see QUESTIONS.md Phase 2) lives in `src/adapters/db/base.py`.
+   Every ORM model inherits it so autogenerate sees a single `MetaData`.
+   `compare_type=True` so column-type changes are detected.
+3. **The initial migration is an empty baseline** (`down_revision = None`,
+   `upgrade`/`downgrade` are `pass`). It establishes the root of the revision
+   history against an empty database. The first *table-creating* migration is
+   `--autogenerate`d in task 2.3 once ORM models exist — models drive the
+   schema, never hand-written DDL racing ahead of them.
+
+### Alternatives considered
+
+- **Keep the URL in `alembic.ini`.** Rejected: two places to change the DB
+  target, and a real credential would sit in a committed file. A blank ini +
+  `Settings` injection keeps secrets in env where the rest of the app reads
+  them.
+- **Read `os.environ["DATABASE_URL"]` directly in `env.py`** (skip `Settings`).
+  Rejected: re-implements parsing/defaults that `Settings` already owns and
+  invites drift if the default ever changes. The cost — see Consequences — is
+  that `Settings()` requires `JWT_SECRET`; accepted because migrations run in
+  the same environment as the app, which needs it anyway.
+- **Hand-write the first migration's tables now (2.2).** Rejected: with no ORM
+  models, 2.3's autogenerate would then diff models against hand-authored SQL,
+  inviting drift and contradicting the model-driven workflow QUIZZES.md 2.3
+  assumes. Geometry-before-models is backwards for an ORM project.
+- **Ship no migration at all in 2.2, defer to 2.3.** Rejected: leaves the
+  board's "+ initial migration" unfulfilled and means there's no revision
+  history root to autogenerate *against* — the first autogenerate would have a
+  `None` base anyway, so we may as well make that root explicit and tested now.
+
+### Consequences
+
+**Gains:**
+- Single source of truth for the DB target; no secret in version control.
+- `alembic upgrade head` / `downgrade base` work today and are tested
+  (single-head/single-base guards + a manual round-trip), so 2.3 builds on a
+  proven base instead of debugging wiring and schema at once.
+- Deterministic constraint/index names from migration one (naming convention
+  on `Base.metadata`), so autogenerate diffs stay stable across environments.
+
+**Costs:**
+- **`env.py` depends on the full `Settings`**, so any online Alembic command
+  (`upgrade`, `downgrade`, `check`, `current`) requires `JWT_SECRET` to be
+  present — even though migrations don't use it. Dev `.env` supplies it (empty
+  string passes), CI/deploy already set it. The offline `revision` command does
+  not run `env.py`, so generating migrations is unaffected. If this coupling
+  ever bites (e.g. a migrations-only container), the fix is a narrower
+  migration-settings object — deferred until there's a concrete need.
+- An empty baseline is a real revision that does nothing, which can look like a
+  mistake. Mitigated by an explicit docstring in the migration file.
+
+### References
+
+- [base.py](src/adapters/db/base.py) — `Base` + naming convention.
+- [env.py](alembic/env.py) — URL injection + async `run_sync` bridge.
+- [ADR-0003](#0003--asyncio-end-to-end-in-adapters-and-entrypoints-sync-domain-cpu-work-to-celery) — the async decision this builds on.
+- [QUESTIONS.md Phase 2](QUESTIONS.md) — naming-convention decision (line 83).
+- [Alembic — async recipe](https://alembic.sqlalchemy.org/en/latest/cookbook.html#using-asyncio-with-alembic).
+
+---
+
 ## 0003 — `asyncio` end-to-end in adapters and entrypoints; sync domain; CPU work to Celery
 
 **Date:** 2026-05-13
