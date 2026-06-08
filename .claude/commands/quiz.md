@@ -67,6 +67,19 @@ The report must:
 - Name concrete sections of `CLAUDE.md` or `QUIZZES.md` to revisit — never say "study this topic more" without a pointer.
 - Be honest. Do not inflate the score out of politeness.
 
+## Phase 4.5: Suggested reading for failed answers
+
+If the quiz had **any** 🟡 or ❌ answers, append a **"Suggested reading"** block to the report. For each failed question, map the missed *concept* to a concrete pointer in the user's two senior-Python references:
+
+- `~/Downloads/senior_python_checklist.html` — a sectioned topic checklist (e.g. §4 Databases → "Transactions & concurrency", §5 System Design → "Hexagonal / Ports & Adapters"). Cite the **section number + heading + the specific bullet** that covers the gap.
+- `~/Downloads/senior_python_reading_list.html` — annotated book recommendations grouped by area (e.g. "Databases and data" → *SQL Performance Explained*, *Database Internals*). Cite the **book title** when one squarely covers the concept.
+
+Rules for this block:
+- One bullet per failed question: `Q<n> (<concept>) → checklist <§ + heading + bullet>; reading: <book title if apt>`.
+- Open the two HTML files and quote the actual heading/bullet text — never invent a section that isn't there. If a concept genuinely isn't covered (e.g. tool-specific Alembic mechanics), say so plainly rather than forcing a match.
+- A concept may map to more than one section; pick the closest. Prefer the checklist (free, specific) first, then a book if one is a strong fit.
+- If the two files are missing, note that and skip the block — don't block the report on it.
+
 ## Phase 5: Offer to update `SENIOR_BRIEF.md`
 
 If the session surfaced a *named senior-dev concept* the user engaged with — not project trivia — offer to append it to `SENIOR_BRIEF.md` at the repo root.
