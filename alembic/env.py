@@ -9,6 +9,11 @@ from alembic import context
 from src.adapters.db.base import Base
 from src.config import Settings
 
+# Importing the ORM models registers every table on ``Base.metadata`` as a side
+# effect. ``--autogenerate`` diffs that metadata against the live DB, so without
+# this import the models are invisible and autogenerate emits an empty migration.
+from src.adapters.db import models  # noqa: F401  (import-for-side-effect)
+
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
