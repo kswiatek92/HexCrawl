@@ -13,6 +13,7 @@ loading-strategy test).
 """
 
 from sqlalchemy import ForeignKeyConstraint, inspect
+from sqlalchemy.sql import operators
 
 from src.adapters.db.base import Base
 from src.adapters.db.models import (
@@ -122,12 +123,26 @@ def test_aggregate_cascades_delete_orphan() -> None:
 
 def test_scores_has_leaderboard_composite_index() -> None:
     # top_n / rank_of sort by value DESC, computed_at ASC; the composite index
-    # must span exactly those two columns in that order.
+    # must span exactly those two columns *in that order and those directions*.
+    # Asserting direction matters: a plain (value, computed_at) index cannot
+    # serve the mixed-direction ORDER BY, so if .desc()/.asc() regress to bare
+    # columns this must fail.
     scores = Base.metadata.tables["scores"]
-    composite = {
-        idx.name: [c.name for c in idx.columns] for idx in scores.indexes if len(idx.columns) == 2
-    }
-    assert composite == {"ix_scores_value_computed_at": ["value", "computed_at"]}
+    composite = [idx for idx in scores.indexes if len(idx.columns) == 2]
+    assert [idx.name for idx in composite] == ["ix_scores_value_computed_at"]
+
+    def direction(expr: object) -> str:
+        modifier = getattr(expr, "modifier", None)
+        if modifier is operators.desc_op:
+            return "DESC"
+        if modifier is operators.asc_op:
+            return "ASC"
+        return "NONE"
+
+    ordering = [
+        (getattr(expr, "element", expr).name, direction(expr)) for expr in composite[0].expressions
+    ]
+    assert ordering == [("value", "DESC"), ("computed_at", "ASC")]
 
 
 def test_scores_has_no_foreign_keys() -> None:
@@ -145,7 +160,7 @@ def test_player_fk_uses_naming_convention() -> None:
     assert fk_names == {"fk_players_dungeon_id_dungeons"}
 
 
-def test_enemy_uuid_table_distinct_from_domain() -> None:
+def test_orm_rows_are_distinct_from_domain() -> None:
     # The ORM classes are separate from the domain dataclasses (BOARD 2.3).
     # A domain Enemy has no __tablename__; the ORM EnemyRow does.
     assert EnemyRow.__tablename__ == "enemies"
