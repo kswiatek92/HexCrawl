@@ -12,6 +12,109 @@ Entries are append-only. If a decision is reversed, add a new entry that superse
 
 ---
 
+## 0005 — ORM persistence shape: relational aggregate, 1:1 player, JSONB grid, FK-free scores
+
+**Date:** 2026-06-10
+**Status:** Accepted
+**Scope:** `src/adapters/db/models.py` and the create-tables migration
+(`alembic/versions/cb4012b33ce0_*`). Fixes the row layout the Phase 2.4/2.5
+repositories map domain dataclasses to/from, and the loading strategy every
+read of a run inherits.
+
+### Context
+
+Task 2.3 turns the pure domain dataclasses (`Dungeon`, `Floor`, `Enemy`,
+`Player`, `Score`) into a Postgres schema. Several non-obvious mapping calls had
+to be made, and a genuine tension surfaced:
+
+1. **Persist a run as relational tables, or seed-only?** The `Dungeon` model
+   (ADR/task 1.6) notes that floors are a runtime cache regenerable from
+   `(seed, index)`, implying minimal persistence. But the 2.3 quiz (Q2/Q3)
+   tests N+1 and `selectin` loading on `Dungeon → Floors → Enemies`, which only
+   exists if floors/enemies are real tables.
+2. **How does the per-run `Player` map?** (Quiz Q5 names FK vs JSONB vs table.)
+3. **How is the 80×50 `Floor.tiles` grid stored** — and ground `items`?
+4. **Does a `Score` reference its `Dungeon` by foreign key?**
+
+### Decision
+
+1. **Relational aggregate, not seed-only.** `dungeons → floors → enemies` are
+   tables (1:N each), with `players` 1:1. The Postgres checkpoint therefore
+   holds the *mutated* run state — current HP, pickups, `awake` flags — that a
+   seed alone cannot reconstruct. Collections load with **`lazy="selectin"`**:
+   one extra `... IN (:ids)` query per aggregate level, sidestepping both the
+   N+1 problem and the parent-row multiplication a JOIN-based eager load causes
+   on one-to-many. The seed regeneration in 1.6 remains valid for *generating*
+   unseen floors; it just isn't the *persistence* mechanism.
+2. **`Player` is a separate 1:1 table** (`players`) whose primary key *is* a
+   `dungeon_id` FK (`ondelete=CASCADE`). Normalised and queryable, and it keeps
+   the domain's deliberate Dungeon/Player separation intact in the schema.
+3. **Floor grid as JSONB.** `tiles` (nested string array) and `items` (keyed by
+   `"x,y"`) are `JSONB` columns; `stairs` and all `(x, y)` positions are two
+   integer columns. The grid is always read/written whole, never queried
+   cell-by-cell, so a blob beats a ~4000-row-per-floor cells table.
+4. **`scores.dungeon_id` is a plain column, not a foreign key.** A `Score` is an
+   immutable leaderboard record that must outlive its run (active runs live in
+   Redis and may be GC'd; an admin path may hard-delete a dungeon). A composite
+   index `(value DESC, computed_at ASC)` backs the `IScoreRepository` ordering.
+
+ORM classes carry a `*Row` suffix and import only SQLAlchemy + `BehaviourType`
+(`adapters → domain` is allowed); the enum persists as `native_enum=False`
+(portable VARCHAR + CHECK, not a migration-hostile Postgres `ENUM`).
+
+### Alternatives considered
+
+- **Seed-only dungeon persistence** (store `seed` + `current_floor_index`,
+  regenerate floors on load). Rejected: regeneration yields *initial* state, not
+  the mutated state a mid-run save needs, and it leaves nothing for the 2.3
+  quiz's relationship/loading questions to describe. Kept as the floor-*generation*
+  path, not the persistence path.
+- **`lazy="joined"` / `"subquery"`** for the collections. Rejected as the
+  default: a `joined` one-to-many multiplies the parent row per child; `selectin`
+  is the standard win for collections. Repos can still override per-query with
+  `selectinload`/`joinedload` where a specific access pattern wants it.
+- **Player embedded as a `dungeons.player` JSONB blob**, or flattened onto the
+  `dungeons` row. Rejected: blob loses queryability/FK integrity; flattening
+  conflates "the run" with "the player" and fights the 1.6 separation.
+- **Tiles as a `tiles(floor_id, x, y, type)` table.** Rejected: thousands of
+  rows per floor for data only ever handled as a whole grid — pure overhead.
+- **`scores.dungeon_id` as a real FK** (with `ON DELETE SET NULL`/`RESTRICT`).
+  Rejected: couples permanent leaderboard history to ephemeral run lifecycle.
+
+### Consequences
+
+**Gains:**
+- Mid-run checkpoints round-trip exact state (HP, pickups, aggro), enabling the
+  game-over / descent / explicit-save persistence points in CLAUDE.md.
+- `selectin` makes loading a run a small constant number of queries regardless
+  of floor/enemy count — no N+1, no row blow-up.
+- Leaderboard reads and durability are decoupled from run storage; the composite
+  index serves `top_n` (global) and the weekly range scan.
+
+**Costs:**
+- More tables and FKs than a seed-only design — more migration surface and more
+  mapping code in 2.4 (domain ↔ ORM translation is now non-trivial). Accepted:
+  it's the translation layer the hexagonal split exists to contain.
+- JSONB `tiles`/`items` are opaque to SQL — can't filter/aggregate on grid
+  contents in the DB. Fine for v1 (the game reasons over them in Python); a
+  future "search floors containing X" feature would need a different shape.
+- `selectin` issues a second round trip per collection (vs a single joined
+  query). Negligible here (bounded fan-out) and the right default; pathological
+  cases can opt into `joinedload` at the call site.
+- A run hard-deleted from `dungeons` leaves its `scores` rows with a dangling
+  `dungeon_id` (no referential guarantee). Intended — those rows are the
+  leaderboard's source of truth, not a view of live runs.
+
+### References
+
+- [models.py](src/adapters/db/models.py) — the five `*Row` classes + composite index.
+- [cb4012b33ce0](alembic/versions/cb4012b33ce0_create_game_and_score_tables.py) — create-tables migration.
+- [ADR-0004](#0004--alembic-settings-sourced-url--empty-baseline-migration) — the migration workflow this is the first real payload for.
+- [QUIZZES.md Task 2.3](QUIZZES.md) — N+1, loading strategies, identity map, player-mapping trade-off.
+- [SQLAlchemy — relationship loading](https://docs.sqlalchemy.org/en/20/orm/queryguide/relationships.html#select-in-loading).
+
+---
+
 ## 0004 — Alembic: `Settings`-sourced URL + empty baseline migration
 
 **Date:** 2026-06-02
