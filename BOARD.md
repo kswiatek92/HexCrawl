@@ -8,6 +8,13 @@ Assignees: `K` = Krzysztof · `?` = unassigned / open for collaborator
 
 ## Quiz system
 
+> 🚫 **QUIZZES DISABLED** (set 2026-06-12, by Krzysztof). While disabled, do **not**
+> offer/require quizzes, do **not** run quiz rituals, and do **not** gate task pickup or
+> phase progression on quiz state. **Preserve all quiz cells as-is** (`⬜`/`🔁`/`🏆`) —
+> they are the backlog owed when quizzes are re-enabled. Re-enable only when Krzysztof
+> says so (e.g. "enable quizzes"), then remove this banner. Owed on re-enable: task 2.4
+> (`⬜`) and every phase summary quiz.
+
 - Every task has a quiz in `QUIZZES.md`. Take it **after** the task is done.
 - **Task quiz**: 90% threshold (5-question quiz → need 5/5; 10-question → 9/10).
 - **Phase quiz**: 90% threshold. Covers the whole phase. Do not start the next phase until passed.
