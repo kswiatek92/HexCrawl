@@ -301,7 +301,15 @@ reveal the bug — it stays open so you can re-attempt later; ask explicitly if 
 2. The adapter's core job is mapping: domain `Dungeon` → ORM → SQL and back. Why does that mapping belong in the adapter, and what's the cost of letting it leak (the domain learns about columns)?
 3. `async with session.begin()`: what transaction boundary does it open, and what happens on an exception (rollback) vs a clean exit (commit)?
 4. Is SQLAlchemy's session already a Unit of Work? Explain, and say when you'd wrap it in an explicit UoW abstraction for use-case-level atomicity.
-5. Async SQLAlchemy + asyncpg: why must the whole call chain be `async`, and what's the classic bug of making a blocking/sync DB call inside an async endpoint?
+5. A repository method meant to fetch a saved run:
+   ```python
+   async def get(self, game_id: UUID) -> Dungeon | None:
+       row = self._session.get(DungeonRow, game_id)
+       if row is None:
+           return None
+       return self._to_domain(row)
+   ```
+   Find the bug and name the runtime symptom it produces. Separately: why must the whole call chain be `async` (asyncpg), and what's the classic failure of letting a *blocking* DB call sneak into an async path?
 
 ---
 

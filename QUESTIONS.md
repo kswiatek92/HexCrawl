@@ -81,6 +81,7 @@ Rules:
 - [x] Active game state schema — one row per session with a JSONB blob, or fully relational? (task 2.3) → One row per session, JSONB blob. Active state lives in Redis; Postgres only stores the whole-Dungeon snapshot on game-over/checkpoint and reads it back wholesale (read-as-a-blob). Score/leaderboard stays relational separately.
 - [x] JWT refresh-token flow — Supabase SDK on frontend only, or does the backend rotate too? (task 2.10) → Supabase SDK on frontend only. Backend is a stateless resource server that only verifies access-token JWTs (signature + exp + aud) and never sees refresh tokens.
 - [x] Alembic naming convention for constraints/indexes — set in `env.py` now? (task 2.2) → Yes — define a `naming_convention` on the SQLAlchemy MetaData and wire it through Alembic's `env.py` from the first migration, to keep autogenerate diffs and downgrades stable.
+- [x] Game-repository player persistence — `save(dungeon)` was handed no player, yet `dungeons.user_id` is `NOT NULL` and the `players` table needs filling. (task 2.4) → **Widened the port** to `save(dungeon, player) -> (Dungeon, Player)` / `get -> (Dungeon, Player) | None`; `user_id` denormalised from `player.user_id`. No migration. Repo merges+flushes but does not commit — the use case owns the transaction (UoW). See [DECISIONS.md ADR-0006](DECISIONS.md). Domain model + service signatures unchanged — `Dungeon` still has no `player` field, so line 41 still holds.
 
 ---
 

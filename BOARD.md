@@ -8,6 +8,13 @@ Assignees: `K` = Krzysztof · `?` = unassigned / open for collaborator
 
 ## Quiz system
 
+> 🚫 **QUIZZES DISABLED** (set 2026-06-12, by Krzysztof). While disabled, do **not**
+> offer/require quizzes, do **not** run quiz rituals, and do **not** gate task pickup or
+> phase progression on quiz state. **Preserve all quiz cells as-is** (`⬜`/`🔁`/`🏆`) —
+> they are the backlog owed when quizzes are re-enabled. Re-enable only when Krzysztof
+> says so (e.g. "enable quizzes"), then remove this banner. Owed on re-enable: task 2.4
+> (`⬜`) and every phase summary quiz.
+
 - Every task has a quiz in `QUIZZES.md`. Take it **after** the task is done.
 - **Task quiz**: 90% threshold (5-question quiz → need 5/5; 10-question → 9/10).
 - **Phase quiz**: 90% threshold. Covers the whole phase. Do not start the next phase until passed.
@@ -88,7 +95,7 @@ Weeks/dates below are **remaining work projected from 2026-06-08** at 10 h/week.
 | 2.1 | `docker-compose.yml` (postgres, redis) | ✅ | 🏆 | K | postgres + redis, named pgdata volume, healthchecks |
 | 2.2 | Alembic setup + initial migration | ✅ | 🏆 | K | async env.py, Settings-sourced URL, naming convention on Base, empty baseline |
 | 2.3 | SQLAlchemy ORM models | ✅ | 🏆 | K | Separate from domain dataclasses |
-| 2.4 | `PostgresGameRepository` | 🔲 | ⬜ | K | implements IGameRepository |
+| 2.4 | `PostgresGameRepository` | ✅ | ⬜ | K | implements IGameRepository |
 | 2.5 | `PostgresScoreRepository` | 🔲 | ⬜ | K | implements IScoreRepository |
 | 2.6 | Integration tests for DB repos | 🔲 | ⬜ | K | testcontainers / pytest-docker |
 | 2.7 | `RedisCache` implementing `ICachePort` | 🔲 | ⬜ | K | |

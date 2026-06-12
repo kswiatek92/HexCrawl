@@ -1,8 +1,8 @@
 """Port: game-state repository.
 
 Structural contract that any persistence adapter must satisfy in order
-to store and retrieve a :class:`~src.domain.models.Dungeon` for the
-domain layer. Concrete implementations live in ``src/adapters/db/``
+to store and retrieve a saved run — the ``(Dungeon, Player)`` pair — for
+the domain layer. Concrete implementations live in ``src/adapters/db/``
 (Phase 2) — this module never imports them, and they conform via
 structural typing rather than inheritance.
 
@@ -19,13 +19,13 @@ Design choices are pinned by ``QUIZZES.md`` task 1.10:
   inherit-from-domain coupling, which keeps the dependency arrow
   pointing the right way: ``adapters → ports``, never ``adapters →
   domain-base-class → ports``.
-* **`save` returns the saved `Dungeon`** (Q2) — adapters may refresh
-  server-owned fields on the returned entity (e.g. an ``updated_at``
-  timestamp once Phase 2 schema lands) without requiring a signature
-  change at call sites. Also keeps the use-case style fluent: the
-  returned object is the canonical post-write state.
-* **`get` returns `Dungeon | None`** (Q4) — "not found" on a
-  ``GET /game/{id}`` lookup is an expected outcome, not exceptional.
+* **`save` takes and returns the `(Dungeon, Player)` pair** (Q2) — a
+  saved run is both objects (ADR-0006). Returning them lets adapters
+  refresh server-owned fields (e.g. an ``updated_at`` once it lands)
+  without a call-site signature change, and keeps the use-case style
+  fluent: the returned pair is the canonical post-write state.
+* **`get` returns `tuple[Dungeon, Player] | None`** (Q4) — "not found"
+  on a ``GET /game/{id}`` lookup is an expected outcome, not exceptional.
   Forcing callers into ``try/except`` for control flow is a code smell;
   ``None`` is checked at the type level by mypy-strict and surfaces
   cleanly through the application layer to a 404 at the entrypoint.
@@ -43,11 +43,19 @@ Design choices are pinned by ``QUIZZES.md`` task 1.10:
 from typing import Protocol
 from uuid import UUID
 
-from src.domain.models import Dungeon
+from src.domain.models import Dungeon, Player
 
 
 class IGameRepository(Protocol):
-    """Persistence port for :class:`Dungeon` aggregates.
+    """Persistence port for a saved run: the ``(Dungeon, Player)`` pair.
+
+    A run's persisted state is the dungeon aggregate *and* the player who
+    is playing it. The domain keeps ``Dungeon`` and ``Player`` as separate
+    objects (services take both — ``process_turn(dungeon, player, action)``,
+    see ``QUESTIONS.md`` line 41), but a *saved game* is the pair: restoring
+    a run without its player would lose HP, position, and the owning user.
+    So this port travels both together (see DECISIONS.md ADR-0006). The
+    ``Player.user_id`` is also what an adapter records as the run's owner.
 
     Adapters implementing this Protocol own the storage details
     (PostgreSQL row layout, JSON encoding of ``floors``, transaction
@@ -55,15 +63,15 @@ class IGameRepository(Protocol):
     below.
     """
 
-    async def save(self, dungeon: Dungeon) -> Dungeon:
-        """Persist ``dungeon`` and return the stored entity.
+    async def save(self, dungeon: Dungeon, player: Player) -> tuple[Dungeon, Player]:
+        """Persist the ``(dungeon, player)`` pair and return it.
 
-        Idempotent on ``dungeon.dungeon_id``: calling ``save`` twice
-        with the same id is an upsert from the domain's point of
-        view — adapters MUST NOT raise on a repeat save of the same
-        aggregate. The returned object is the canonical post-write
-        state and may carry adapter-refreshed fields not present on
-        the input.
+        Idempotent on ``dungeon.dungeon_id``: calling ``save`` twice with
+        the same id is an upsert from the domain's point of view — adapters
+        MUST NOT raise on a repeat save of the same run. The player is
+        stored 1:1 with the dungeon, and the run's owner is taken from
+        ``player.user_id``. The returned pair is the canonical post-write
+        state and may carry adapter-refreshed fields not present on input.
 
         Adapter-level errors (connection failure, serialisation bug,
         constraint violation that is not the idempotency case)
@@ -72,8 +80,8 @@ class IGameRepository(Protocol):
         """
         ...
 
-    async def get(self, game_id: UUID) -> Dungeon | None:
-        """Fetch the dungeon with ``game_id``, or ``None`` if missing.
+    async def get(self, game_id: UUID) -> tuple[Dungeon, Player] | None:
+        """Fetch the ``(dungeon, player)`` for ``game_id``, or ``None``.
 
         ``game_id`` and ``Dungeon.dungeon_id`` are the same value. The
         parameter is named ``game_id`` deliberately — it matches the
@@ -83,8 +91,11 @@ class IGameRepository(Protocol):
         vocabulary. Same identifier, two names depending on which
         side of the port you're on.
 
-        A missing row is a normal outcome (the id was never persisted,
+        A missing run is a normal outcome (the id was never persisted,
         or the run was hard-deleted by an admin path) and MUST NOT
-        raise. Adapter-level errors propagate as exceptions.
+        raise — it returns ``None``. A run that exists always has its
+        player; a dungeon row with no player is a storage-integrity
+        fault, which propagates as an exception. Other adapter-level
+        errors propagate as exceptions too.
         """
         ...

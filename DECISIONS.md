@@ -12,6 +12,102 @@ Entries are append-only. If a decision is reversed, add a new entry that superse
 
 ---
 
+## 0006 — Game repository persists the `(Dungeon, Player)` pair
+
+**Date:** 2026-06-12
+**Status:** Accepted
+**Scope:** `src/domain/ports/game_repository.py` (the port contract) and
+`src/adapters/db/game_repository.py` (the adapter). Sets how a *saved run* is
+written and restored, and the transaction-ownership convention every DB
+repository follows (2.5 included).
+
+### Context
+
+Task 2.4 implements `IGameRepository`. The port originally took/returned a
+`Dungeon` alone. Implementing it surfaced one gap with two faces:
+
+1. The 2.3 schema has a 1:1 `players` table, but `save(dungeon)` is handed no
+   player — so it could never be written, and a restored run would lose the
+   player's HP / position.
+2. `DungeonRow.user_id` is `NOT NULL` (the indexed owner column), but the
+   domain `Dungeon` carries no user — so `_to_orm` couldn't even produce a
+   valid row.
+
+Both stem from the same fact: **a saved run is the dungeon *and* its player**
+(and the run's owner *is* the player's user). The domain deliberately keeps
+`Dungeon` and `Player` as separate objects — services take both,
+`process_turn(dungeon, player, action)` (QUESTIONS.md line 41) — but that is a
+statement about *domain modelling*, not about what a single checkpoint must
+contain.
+
+### Decision
+
+1. **Widen the port to travel the pair.**
+   `save(dungeon, player) -> tuple[Dungeon, Player]` and
+   `get(game_id) -> tuple[Dungeon, Player] | None`. A bare tuple (not a new
+   `GameState` type) keeps the domain change to one file; a named aggregate can
+   come later if Phase 3 finds the pair unwieldy.
+2. **`user_id` is denormalised onto `dungeons` from `player.user_id`** — no
+   migration; the full 2.3 schema (`dungeons`/`players`/`floors`/`enemies`) is
+   used as built.
+3. **The repository does not own the transaction.** `save` does `merge` +
+   `flush` (no commit); the Unit-of-Work boundary belongs to the calling use
+   case / ambient `session.begin()` (Phase 3). The `AsyncSession` is itself the
+   per-request UoW (quiz 2.4 Q4). The session is constructor-injected.
+4. **Upsert via `session.merge`** — idempotent on `dungeon_id`; with the
+   `delete-orphan` cascade from ADR-0005 it reconciles removed floors/enemies
+   (verified: a re-save dropping an enemy deletes its row).
+
+This does **not** reverse ADR/QUESTIONS line 41: the domain model and service
+signatures are unchanged (`Dungeon` still has no `player` field). Only the
+*persistence port* carries both.
+
+### Alternatives considered
+
+- **Defer the player; persist the dungeon only.** Rejected: leaves `user_id`
+  unfillable (NOT NULL), leaves the `players` table permanently unwritten, and
+  makes a "saved game" non-restorable (no player state). It pushed the real
+  decision to Phase 3 while shipping a repo that can't actually write a row.
+- **Make `dungeons.user_id` nullable, or drop it.** Rejected: needs a migration
+  and *still* doesn't persist the player — it only hides the NOT-NULL symptom
+  while the resume-state gap remains.
+- **A separate `save_player` / player port.** Rejected: a "save game" becomes
+  two calls (non-atomic unless threaded through one transaction by every
+  caller) and adds port surface for no gain over carrying the pair.
+- **A named `GameState(dungeon, player)` domain type now.** Deferred, not
+  rejected: reasonable, but more domain surface than 2.4 needs; revisit in
+  Phase 3 if tuple-passing gets noisy across use cases.
+
+### Consequences
+
+**Gains:**
+- Saved runs are fully restorable (dungeon + player), satisfying the
+  `GET /game/{id}` "fetch saved game state" surface.
+- `dungeons.user_id` is populated, so the "my games" index is real — no
+  migration, the 2.3 schema is used end-to-end.
+- One clear transaction-ownership rule for every repo (use case commits), so
+  2.5 (`PostgresScoreRepository`) follows the same shape.
+
+**Costs:**
+- The port now passes a **bare tuple**; callers unpack `dungeon, player`. If
+  this spreads awkwardly through Phase 3, a named aggregate is the follow-up.
+- `get` must treat a dungeon row with no player row as a **storage-integrity
+  fault** (raises) — unreachable via `save`, but a real branch.
+- **Enemy order within a floor is not preserved by the schema** (no order
+  column on `enemies`), so a DB round trip may reorder a floor's enemies; the
+  pure mapper preserves order, and equality-sensitive checks must sort by
+  `enemy_id`. Flagged for task 2.6 — add an `order_by` if order proves
+  semantically load-bearing.
+
+### References
+
+- [game_repository.py (port)](src/domain/ports/game_repository.py) — widened contract.
+- [game_repository.py (adapter)](src/adapters/db/game_repository.py) — mappers + merge/flush/get.
+- [ADR-0005](#0005--orm-persistence-shape-relational-aggregate-11-player-jsonb-grid-fk-free-scores) — the schema this writes to (delete-orphan cascade, selectin).
+- [QUESTIONS.md line 41](QUESTIONS.md) — Dungeon/Player domain separation (unchanged by this).
+
+---
+
 ## 0005 — ORM persistence shape: relational aggregate, 1:1 player, JSONB grid, FK-free scores
 
 **Date:** 2026-06-10
