@@ -2,7 +2,7 @@ import inspect
 from typing import get_type_hints
 from uuid import UUID, uuid4
 
-from src.domain.models import Dungeon, Floor, TileType
+from src.domain.models import Dungeon, Floor, Player, TileType
 from src.domain.ports import IGameRepository
 
 
@@ -25,28 +25,34 @@ def _make_dungeon(*, dungeon_id: UUID | None = None, seed: int = 42) -> Dungeon:
     )
 
 
+def _make_player(*, user_id: UUID | None = None) -> Player:
+    return Player(user_id=user_id or uuid4(), name="Hero", position=(1, 1))
+
+
 class _FakeGameRepository:
     """Local in-memory fake used to lock the IGameRepository contract.
 
-    Stays private (``_`` prefix) and local to this test file until
-    ``GameService`` tests (task 1.17) become a second consumer — at
-    that point this gets promoted to a shared fixture. YAGNI until
-    then.
+    Stays private (``_`` prefix) and local to this test file until a
+    second consumer needs it — at that point this gets promoted to a
+    shared fixture. YAGNI until then.
 
     Note the deliberate absence of ``IGameRepository`` in the bases:
     structural conformance (Protocol) means inheritance is neither
     needed nor desirable. The conformance is asserted statically by
     ``test_fake_conforms_structurally`` below.
+
+    The store is keyed by ``dungeon_id`` and holds the whole saved run —
+    the ``(Dungeon, Player)`` pair — mirroring the widened port (ADR-0006).
     """
 
     def __init__(self) -> None:
-        self._store: dict[UUID, Dungeon] = {}
+        self._store: dict[UUID, tuple[Dungeon, Player]] = {}
 
-    async def save(self, dungeon: Dungeon) -> Dungeon:
-        self._store[dungeon.dungeon_id] = dungeon
-        return dungeon
+    async def save(self, dungeon: Dungeon, player: Player) -> tuple[Dungeon, Player]:
+        self._store[dungeon.dungeon_id] = (dungeon, player)
+        return dungeon, player
 
-    async def get(self, game_id: UUID) -> Dungeon | None:
+    async def get(self, game_id: UUID) -> tuple[Dungeon, Player] | None:
         return self._store.get(game_id)
 
 
@@ -65,10 +71,12 @@ def test_protocol_is_a_protocol() -> None:
 def test_save_signature_is_async_and_typed() -> None:
     assert inspect.iscoroutinefunction(IGameRepository.save)
     sig = inspect.signature(IGameRepository.save)
-    assert list(sig.parameters) == ["self", "dungeon"]
+    assert list(sig.parameters) == ["self", "dungeon", "player"]
     hints = get_type_hints(IGameRepository.save)
     assert hints["dungeon"] is Dungeon
-    assert hints["return"] is Dungeon
+    assert hints["player"] is Player
+    # A saved run is the pair, returned back as the canonical post-write state.
+    assert hints["return"] == tuple[Dungeon, Player]
 
 
 def test_get_signature_is_async_and_typed() -> None:
@@ -77,7 +85,8 @@ def test_get_signature_is_async_and_typed() -> None:
     assert list(sig.parameters) == ["self", "game_id"]
     hints = get_type_hints(IGameRepository.get)
     assert hints["game_id"] is UUID
-    assert hints["return"] == Dungeon | None
+    # ``None`` for a missing run; the pair otherwise.
+    assert hints["return"] == tuple[Dungeon, Player] | None
 
 
 def test_fake_conforms_structurally() -> None:
@@ -85,21 +94,22 @@ def test_fake_conforms_structurally() -> None:
     assert repo is not None
 
 
-async def test_fake_save_returns_saved_dungeon() -> None:
+async def test_fake_save_returns_saved_pair() -> None:
     repo: IGameRepository = _FakeGameRepository()
     dungeon = _make_dungeon()
+    player = _make_player()
 
-    saved = await repo.save(dungeon)
+    saved_dungeon, saved_player = await repo.save(dungeon, player)
 
     # Field-equality, not ``is``: the port contract permits adapters to
-    # return a new Dungeon instance carrying refreshed server-owned
-    # fields. Asserting object identity would over-constrain valid
-    # adapter implementations.
-    assert saved.dungeon_id == dungeon.dungeon_id
-    assert saved == dungeon
+    # return new instances carrying refreshed server-owned fields.
+    assert saved_dungeon == dungeon
+    assert saved_player == player
     retrieved = await repo.get(dungeon.dungeon_id)
     assert retrieved is not None
-    assert retrieved.dungeon_id == dungeon.dungeon_id
+    retrieved_dungeon, retrieved_player = retrieved
+    assert retrieved_dungeon.dungeon_id == dungeon.dungeon_id
+    assert retrieved_player.user_id == player.user_id
 
 
 async def test_fake_get_missing_returns_none() -> None:
@@ -112,15 +122,16 @@ async def test_fake_save_is_idempotent_on_id() -> None:
     did = uuid4()
     first = _make_dungeon(dungeon_id=did, seed=1)
     second = _make_dungeon(dungeon_id=did, seed=2)
+    player = _make_player()
 
-    await repo.save(first)
-    await repo.save(second)
+    await repo.save(first, player)
+    await repo.save(second, player)
 
     retrieved = await repo.get(did)
     # Behaviour-level assertion: the second save overwrote the first.
-    # We compare the discriminating field (seed) rather than asserting
-    # ``is second`` — the port permits adapters to return a fresh
-    # instance, so identity is not part of the contract.
+    # Compare the discriminating field (seed) rather than identity — the
+    # port permits adapters to return a fresh instance.
     assert retrieved is not None
-    assert retrieved.dungeon_id == did
-    assert retrieved.seed == second.seed
+    retrieved_dungeon, _ = retrieved
+    assert retrieved_dungeon.dungeon_id == did
+    assert retrieved_dungeon.seed == second.seed
