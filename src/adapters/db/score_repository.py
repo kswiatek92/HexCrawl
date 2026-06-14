@@ -128,12 +128,7 @@ class PostgresScoreRepository:
     async def top_n_for_user(self, user_id: UUID, n: int) -> list[Score]:
         if n <= 0:
             return []
-        stmt = (
-            select(ScoreRow)
-            .where(ScoreRow.user_id == user_id)
-            .order_by(*_ORDER_BY)
-            .limit(n)
-        )
+        stmt = select(ScoreRow).where(ScoreRow.user_id == user_id).order_by(*_ORDER_BY).limit(n)
         result = await self._session.execute(stmt)
         return [_to_domain(row) for row in result.scalars()]
 
@@ -141,9 +136,7 @@ class PostgresScoreRepository:
         weekly = period is LeaderboardPeriod.WEEKLY
 
         # The user's single best score in the period (port: only the best ranks).
-        best_stmt = select(ScoreRow.value, ScoreRow.computed_at).where(
-            ScoreRow.user_id == user_id
-        )
+        best_stmt = select(ScoreRow.value, ScoreRow.computed_at).where(ScoreRow.user_id == user_id)
         if weekly:
             best_stmt = best_stmt.where(ScoreRow.computed_at >= _current_week_start())
         best_stmt = best_stmt.order_by(*_ORDER_BY).limit(1)
@@ -156,10 +149,14 @@ class PostgresScoreRepository:
         # "Strictly ahead" = higher value, or equal value with an earlier run.
         # The user's own best is never strictly ahead of itself, so no DISTINCT
         # on user is needed.
-        ahead_stmt = select(func.count()).select_from(ScoreRow).where(
-            or_(
-                ScoreRow.value > best_value,
-                and_(ScoreRow.value == best_value, ScoreRow.computed_at < best_at),
+        ahead_stmt = (
+            select(func.count())
+            .select_from(ScoreRow)
+            .where(
+                or_(
+                    ScoreRow.value > best_value,
+                    and_(ScoreRow.value == best_value, ScoreRow.computed_at < best_at),
+                )
             )
         )
         if weekly:
