@@ -30,6 +30,7 @@ from collections.abc import AsyncIterator, Iterator
 
 import pytest
 import pytest_asyncio
+from docker.errors import DockerException
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     async_sessionmaker,
@@ -43,8 +44,19 @@ from src.adapters.db.base import Base
 
 @pytest.fixture(scope="session")
 def postgres_container() -> Iterator[PostgresContainer]:
-    with PostgresContainer("postgres:16-alpine", driver="asyncpg") as container:
+    # These tests need a real Postgres, which testcontainers boots via Docker.
+    # If the daemon isn't reachable (no Docker locally), skip the whole DB
+    # integration suite instead of erroring the run — unit tests still pass, and
+    # CI (where Docker is present) runs them in full.
+    try:
+        container = PostgresContainer("postgres:16-alpine", driver="asyncpg")
+        container.start()
+    except DockerException as exc:
+        pytest.skip(f"Docker unavailable — skipping DB integration tests ({exc})")
+    try:
         yield container
+    finally:
+        container.stop()
 
 
 @pytest_asyncio.fixture
