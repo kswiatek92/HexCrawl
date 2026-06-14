@@ -98,7 +98,7 @@ Weeks/dates below are **remaining work projected from 2026-06-08** at 10 h/week.
 | 2.4 | `PostgresGameRepository` | ✅ | ⬜ | K | implements IGameRepository |
 | 2.5 | `PostgresScoreRepository` | ✅ | ⬜ | K | implements IScoreRepository |
 | 2.6 | Integration tests for DB repos | ✅ | ⬜ | K | testcontainers / pytest-docker |
-| 2.7 | `RedisCache` implementing `ICachePort` | 🔄 | ⬜ | K | |
+| 2.7 | `RedisCache` implementing `ICachePort` | ✅ | ⬜ | K | |
 | 2.8 | Integration tests for `RedisCache` | 🔲 | ⬜ | K | |
 | 2.9 | Supabase Auth setup | 🔲 | ⬜ | K | |
 | 2.10 | JWT validation FastAPI dependency | 🔲 | ⬜ | K | `get_current_user` |
