@@ -10,7 +10,7 @@ Each builder uses asymmetric coordinates and distinct field values so a swapped
 axis, a dropped field, or a misordered collection fails loudly.
 """
 
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -27,7 +27,7 @@ from src.domain.models import (
 )
 
 
-def _player(*, user_id=None) -> Player:
+def _player(*, user_id: UUID | None = None) -> Player:
     return Player(
         user_id=user_id or uuid4(),
         name="Hero",
