@@ -96,7 +96,7 @@ Weeks/dates below are **remaining work projected from 2026-06-08** at 10 h/week.
 | 2.2 | Alembic setup + initial migration | ✅ | 🏆 | K | async env.py, Settings-sourced URL, naming convention on Base, empty baseline |
 | 2.3 | SQLAlchemy ORM models | ✅ | 🏆 | K | Separate from domain dataclasses |
 | 2.4 | `PostgresGameRepository` | ✅ | ⬜ | K | implements IGameRepository |
-| 2.5 | `PostgresScoreRepository` | 🔲 | ⬜ | K | implements IScoreRepository |
+| 2.5 | `PostgresScoreRepository` | ✅ | ⬜ | K | implements IScoreRepository |
 | 2.6 | Integration tests for DB repos | 🔲 | ⬜ | K | testcontainers / pytest-docker |
 | 2.7 | `RedisCache` implementing `ICachePort` | 🔲 | ⬜ | K | |
 | 2.8 | Integration tests for `RedisCache` | 🔲 | ⬜ | K | |
