@@ -17,8 +17,9 @@ Two halves, mirroring :mod:`game_repository`:
   (ordering, the weekly window, ``rank_of``, upsert idempotency) needs a live
   Postgres and is covered by the task 2.6 integration tests.
 * **The repository** owns only the session calls. It does **not** commit:
-  ``save`` issues an upsert and leaves the transaction boundary (the Unit of
-  Work) to the calling use case / ambient ``session.begin()`` (Phases 3–4).
+  ``save`` issues an idempotent insert (``ON CONFLICT DO NOTHING``) and leaves
+  the transaction boundary (the Unit of Work) to the calling use case / ambient
+  ``session.begin()`` (Phases 3–4).
 
 Ordering is **LSP-locked** by the port (``QUIZZES.md`` task 1.11 Q3): every read
 sorts by ``value`` DESC then ``computed_at`` ASC, matching the
@@ -36,8 +37,15 @@ from src.adapters.db.models import ScoreRow
 from src.domain.models import LeaderboardPeriod, Score
 
 # Ordering shared by every read (port-locked): highest value first, the earlier
-# run winning ties. Identical to the columns of ix_scores_value_computed_at.
-_ORDER_BY = (ScoreRow.value.desc(), ScoreRow.computed_at.asc())
+# run winning ties. The first two keys mirror ix_scores_value_computed_at; the
+# trailing score_id is a deterministic final tiebreaker so that two rows sharing
+# both value AND computed_at still sort stably (stable pagination, reproducible
+# leaderboard UIs across deploys) instead of in arbitrary heap order.
+_ORDER_BY = (
+    ScoreRow.value.desc(),
+    ScoreRow.computed_at.asc(),
+    ScoreRow.score_id.asc(),
+)
 
 
 def _current_week_start() -> ColumnElement[Any]:
@@ -99,18 +107,22 @@ class PostgresScoreRepository:
         self._session = session
 
     async def save(self, score: Score) -> Score:
-        # INSERT ... ON CONFLICT (score_id) DO UPDATE — an atomic upsert. A
+        # INSERT ... ON CONFLICT (score_id) DO NOTHING — an idempotent insert. A
         # Score is published under at-least-once delivery (the score_recalc
-        # Celery task can be retried), so a repeat save of the same score_id
-        # must be a no-op-equivalent, not a primary-key violation. ON CONFLICT
-        # is stronger than ORM merge() (which is select-then-write and races
-        # under concurrency). commit is the caller's job; execute participates
-        # in the ambient transaction and surfaces constraint errors now.
-        values = _to_values(score)
-        stmt = pg_insert(ScoreRow).values(**values)
-        stmt = stmt.on_conflict_do_update(
-            index_elements=[ScoreRow.score_id],
-            set_={key: value for key, value in values.items() if key != "score_id"},
+        # Celery task can be retried), so a repeat save of the same score_id must
+        # be a no-op, not a primary-key violation. DO NOTHING (not DO UPDATE)
+        # because a Score is immutable (frozen=True, computed once at game over):
+        # an existing row is final, so re-writing its columns would be a
+        # semantic lie and would churn a dead tuple on every retry. The returned
+        # value is the input score; no RETURNING row is needed. commit is the
+        # caller's job; execute participates in the ambient transaction and
+        # surfaces constraint errors now.
+        stmt = (
+            pg_insert(ScoreRow)
+            .values(**_to_values(score))
+            .on_conflict_do_nothing(
+                index_elements=[ScoreRow.score_id],
+            )
         )
         await self._session.execute(stmt)
         return score
