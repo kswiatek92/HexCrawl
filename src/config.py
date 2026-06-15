@@ -16,15 +16,32 @@ class Settings(BaseSettings):
     supabase_service_role_key: str = ""
     supabase_jwt_audience: str = "authenticated"
 
+    def _supabase_base_url(self) -> str:
+        """Normalised Supabase base URL, or fail loud if unconfigured.
+
+        Strips surrounding whitespace and any trailing slash so the derived
+        issuer/JWKS URLs are well-formed. Raises rather than returning a
+        malformed relative URL (``/auth/v1``) when ``supabase_url`` is blank:
+        a silent garbage value would only surface as a confusing fetch/verify
+        error later (task 2.10), so the misconfiguration is reported at the
+        earliest point instead.
+        """
+        base = self.supabase_url.strip().rstrip("/")
+        if not base:
+            raise ValueError(
+                "SUPABASE_URL is not configured; cannot derive the Supabase auth "
+                "issuer/JWKS URL. Set SUPABASE_URL (see docs/auth-setup.md)."
+            )
+        return base
+
     @property
     def supabase_issuer(self) -> str:
         """The `iss` claim Supabase mints into its access tokens.
 
         Derived from ``supabase_url`` (single source of truth) rather than a
-        separate env var, so the two can never drift. Tolerant of a trailing
-        slash on the URL.
+        separate env var, so the two can never drift.
         """
-        return f"{self.supabase_url.rstrip('/')}/auth/v1"
+        return f"{self._supabase_base_url()}/auth/v1"
 
     @property
     def supabase_jwks_url(self) -> str:
@@ -34,4 +51,4 @@ class Settings(BaseSettings):
         server fetches these public keys to verify signatures — no shared
         secret. Consumed by the `get_current_user` dependency in task 2.10.
         """
-        return f"{self.supabase_url.rstrip('/')}/auth/v1/.well-known/jwks.json"
+        return f"{self._supabase_base_url()}/auth/v1/.well-known/jwks.json"

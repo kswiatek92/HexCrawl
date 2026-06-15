@@ -74,3 +74,31 @@ def test_supabase_url_trailing_slash_normalised(monkeypatch: pytest.MonkeyPatch)
 
     assert settings.supabase_issuer == "https://abc.supabase.co/auth/v1"
     assert settings.supabase_jwks_url == "https://abc.supabase.co/auth/v1/.well-known/jwks.json"
+
+
+@pytest.mark.parametrize("blank_url", ["", "   ", "/", " / "])
+def test_supabase_derived_urls_raise_when_url_blank(
+    monkeypatch: pytest.MonkeyPatch, blank_url: str
+) -> None:
+    # A blank/whitespace-only SUPABASE_URL must fail loud rather than yield a
+    # malformed relative URL like "/auth/v1". Remove the guard and these would
+    # return garbage instead of raising.
+    monkeypatch.setenv("JWT_SECRET", "test-secret")
+    monkeypatch.setenv("SUPABASE_URL", blank_url)
+
+    settings = Settings(_env_file=None)
+
+    with pytest.raises(ValueError, match="SUPABASE_URL is not configured"):
+        _ = settings.supabase_issuer
+    with pytest.raises(ValueError, match="SUPABASE_URL is not configured"):
+        _ = settings.supabase_jwks_url
+
+
+def test_supabase_url_whitespace_stripped(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Surrounding whitespace on SUPABASE_URL must not leak into the derived URLs.
+    monkeypatch.setenv("JWT_SECRET", "test-secret")
+    monkeypatch.setenv("SUPABASE_URL", "  https://abc.supabase.co  ")
+
+    settings = Settings(_env_file=None)
+
+    assert settings.supabase_issuer == "https://abc.supabase.co/auth/v1"
