@@ -50,6 +50,16 @@ How to pre-load a relationship in one shot. **joined** = single `LEFT JOIN` — 
 
 ---
 
+## 3 — Testing
+
+### Bounded timeouts on connection-failure tests
+A test that asserts "the dependency is down → we raise" must build its client with an explicit, short `connect`/read timeout. Otherwise the failure path is at the mercy of the OS-level connect timeout, which can be seconds-to-minutes — and varies by how the endpoint refuses (RST = instant; firewall DROP = full timeout).
+**Why it matters:** a "negative" test with no timeout is silently non-deterministic — fast when the port refuses, a multi-second hang (or CI flake/timeout) when it doesn't. The assertion is correct but the *latency* is unbounded.
+**Code-review tell:** a test connecting to an unreachable host/port (`127.0.0.1:1`, `10.255.255.1`, a stopped container) with default client construction and no `socket_connect_timeout`/`socket_timeout` (or equivalent). Pick a timeout generous enough not to false-fail, short enough to bound the run.
+**Reference:** the dead-Redis fix in `tests/integration/adapters/cache/test_redis_cache.py` (`test_failure_propagates_not_swallowed`); Copilot review on PR #51.
+
+---
+
 ## Vocabulary cheat-sheet (one line each)
 
 - **N+1 query problem** — 1 query for N parents + 1 per parent on lazy relationship access = N+1; fix with eager loading.
@@ -57,6 +67,7 @@ How to pre-load a relationship in one shot. **joined** = single `LEFT JOIN` — 
 - **Identity Map / Unit of Work** — session caches one object per PK; tracks mutations and flushes them as one ordered batch on commit.
 - **Normalisation vs JSONB blob** — tables/FKs = queryable + integrity; JSONB = read-as-blob simplicity but SQL-opaque, no FK/schema.
 - **Robustness principle (adapter input tolerance)** — accept every shape a wrapped client can return (bytes *and* str), but end the liberal-accept in an explicit `else: raise`, never a silent `cast`.
+- **Bounded timeouts on connection-failure tests** — a "dependency is down → we raise" test must set a short connect/read timeout, or its latency is at the mercy of the OS connect timeout (RST = instant, DROP = hang/flake).
 
 ---
 
