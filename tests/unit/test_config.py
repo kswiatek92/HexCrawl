@@ -28,3 +28,46 @@ def test_settings_missing_jwt_secret_raises(monkeypatch: pytest.MonkeyPatch) -> 
 
     with pytest.raises(ValidationError):
         Settings()
+
+
+def test_supabase_jwt_audience_defaults_to_authenticated(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("JWT_SECRET", "test-secret")
+    monkeypatch.delenv("SUPABASE_JWT_AUDIENCE", raising=False)
+
+    assert Settings().supabase_jwt_audience == "authenticated"
+
+
+def test_supabase_jwt_audience_env_override(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("JWT_SECRET", "test-secret")
+    monkeypatch.setenv("SUPABASE_JWT_AUDIENCE", "service")
+
+    assert Settings().supabase_jwt_audience == "service"
+
+
+def test_supabase_issuer_derived_from_url(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("JWT_SECRET", "test-secret")
+    monkeypatch.setenv("SUPABASE_URL", "https://abc.supabase.co")
+
+    assert Settings().supabase_issuer == "https://abc.supabase.co/auth/v1"
+
+
+def test_supabase_jwks_url_derived_from_url(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("JWT_SECRET", "test-secret")
+    monkeypatch.setenv("SUPABASE_URL", "https://abc.supabase.co")
+
+    assert Settings().supabase_jwks_url == "https://abc.supabase.co/auth/v1/.well-known/jwks.json"
+
+
+def test_supabase_url_trailing_slash_normalised(monkeypatch: pytest.MonkeyPatch) -> None:
+    # A trailing slash on SUPABASE_URL must not produce a double slash in the
+    # derived issuer/JWKS URL. Fails if `.rstrip('/')` is dropped from the
+    # derivation (the issuer would become ".../co//auth/v1").
+    monkeypatch.setenv("JWT_SECRET", "test-secret")
+    monkeypatch.setenv("SUPABASE_URL", "https://abc.supabase.co/")
+
+    settings = Settings()
+
+    assert settings.supabase_issuer == "https://abc.supabase.co/auth/v1"
+    assert settings.supabase_jwks_url == "https://abc.supabase.co/auth/v1/.well-known/jwks.json"
