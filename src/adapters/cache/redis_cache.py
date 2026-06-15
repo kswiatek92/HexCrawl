@@ -34,8 +34,6 @@ Design, pinned to ``QUIZZES.md`` task 2.7 and the :mod:`cache_port` docstring:
   stays the *caller's* job — this module imports no domain type.
 """
 
-from typing import cast
-
 from redis.asyncio import Redis, from_url
 
 
@@ -64,10 +62,18 @@ class RedisCache:
         # Redis returns nil for both a never-set key and an expired one; the
         # client surfaces both as ``None``, so callers cannot (and must not)
         # distinguish "missing" from "expired" — both are a cache miss.
-        raw = cast("bytes | None", await self._client.get(key))
+        raw = await self._client.get(key)
         if raw is None:
             return None
-        return raw.decode("utf-8")
+        # Honour the str contract regardless of how the injected client was
+        # configured: a default client hands back bytes, a decode_responses=True
+        # client hands back str. Anything else is a misconfiguration we surface
+        # loudly rather than silently mangle.
+        if isinstance(raw, bytes):
+            return raw.decode("utf-8")
+        if isinstance(raw, str):
+            return raw
+        raise TypeError(f"unexpected Redis value type for key {key!r}: {type(raw).__name__}")
 
     async def set(self, key: str, value: str, ttl: int) -> None:
         # Enforce the port's mandatory-positive-TTL invariant before touching

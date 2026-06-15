@@ -22,22 +22,26 @@ from src.domain.ports.cache_port import ICachePort
 class FakeRedis:
     """Minimal async stand-in for ``redis.asyncio.Redis``.
 
-    Stores values as bytes (matching a default-configured real client) and
-    records every ``set`` call so tests can inspect the TTL argument.
+    Records every ``set`` call so tests can inspect the TTL argument. ``get``
+    returns values as **bytes** by default (matching a default-configured real
+    client); with ``decode_responses=True`` it returns **str**, mirroring a
+    client configured that way — both paths the adapter must round-trip.
     """
 
-    def __init__(self) -> None:
-        self._store: dict[str, bytes] = {}
+    def __init__(self, *, decode_responses: bool = False) -> None:
+        self._store: dict[str, str] = {}
+        self._decode_responses = decode_responses
         self.set_calls: list[tuple[str, str, int | None]] = []
 
-    async def get(self, key: str) -> bytes | None:
-        return self._store.get(key)
+    async def get(self, key: str) -> bytes | str | None:
+        value = self._store.get(key)
+        if value is None:
+            return None
+        return value if self._decode_responses else value.encode("utf-8")
 
     async def set(self, key: str, value: str, ex: int | None = None) -> None:
         self.set_calls.append((key, value, ex))
-        # redis-py encodes str -> utf-8 bytes on the wire; mirror that so the
-        # adapter's decode round-trips through the fake faithfully.
-        self._store[key] = value.encode("utf-8")
+        self._store[key] = value
 
 
 def _cache() -> tuple[RedisCache, FakeRedis]:
@@ -70,6 +74,20 @@ async def test_get_round_trips_value_as_str() -> None:
     result = await cache.get("k")
 
     # bytes in the store come back decoded to str (not the raw b"value").
+    assert result == "value"
+    assert isinstance(result, str)
+
+
+async def test_get_round_trips_str_when_client_decodes_responses() -> None:
+    # A client built with decode_responses=True returns str, not bytes. The
+    # adapter must pass it through unchanged rather than crash on a missing
+    # .decode() — this is the case Copilot flagged and the docstring promises.
+    fake = FakeRedis(decode_responses=True)
+    cache = RedisCache(fake)  # type: ignore[arg-type]
+    await cache.set("k", "value", ttl=60)
+
+    result = await cache.get("k")
+
     assert result == "value"
     assert isinstance(result, str)
 
