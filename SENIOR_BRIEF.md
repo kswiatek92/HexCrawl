@@ -40,12 +40,23 @@ How to pre-load a relationship in one shot. **joined** = single `LEFT JOIN` — 
 
 ---
 
+## 2 — Boundaries & Interfaces
+
+### Robustness principle (adapter input tolerance)
+"Be conservative in what you send, liberal in what you accept" (Postel's law). At an adapter that wraps a third-party client, accept every shape the client can legitimately return rather than assuming one — but fail loudly on genuinely unexpected input rather than silently mangling it.
+**Why it matters:** an adapter that assumes one config of its dependency (e.g. Redis `get()` returning `bytes`) becomes a latent crash the moment someone constructs the client differently (`decode_responses=True` → `str`) — and the assumption silently contradicts any "works regardless of config" contract the adapter advertises.
+**Code-review tell:** an unconditional transform on a dependency's return value (`raw.decode(...)`, `resp.json()[0]`) with no type/shape guard, especially when hidden behind a `cast(...)` that suppresses the type checker instead of handling the variance. The "liberal accept" must still end in an explicit `else: raise` — liberal ≠ silent.
+**Reference:** RFC 1122 §1.2.2 (Postel's law); the bytes/str fix in `src/adapters/cache/redis_cache.py` (`get`).
+
+---
+
 ## Vocabulary cheat-sheet (one line each)
 
 - **N+1 query problem** — 1 query for N parents + 1 per parent on lazy relationship access = N+1; fix with eager loading.
 - **Eager-loading strategies** — selectin (`IN` query; default for collections) vs joined (one JOIN, duplicates parents, breaks LIMIT) vs subquery.
 - **Identity Map / Unit of Work** — session caches one object per PK; tracks mutations and flushes them as one ordered batch on commit.
 - **Normalisation vs JSONB blob** — tables/FKs = queryable + integrity; JSONB = read-as-blob simplicity but SQL-opaque, no FK/schema.
+- **Robustness principle (adapter input tolerance)** — accept every shape a wrapped client can return (bytes *and* str), but end the liberal-accept in an explicit `else: raise`, never a silent `cast`.
 
 ---
 
