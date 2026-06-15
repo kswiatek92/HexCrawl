@@ -100,7 +100,7 @@ Weeks/dates below are **remaining work projected from 2026-06-08** at 10 h/week.
 | 2.6 | Integration tests for DB repos | ✅ | ⬜ | K | testcontainers / pytest-docker |
 | 2.7 | `RedisCache` implementing `ICachePort` | ✅ | ⬜ | K | |
 | 2.8 | Integration tests for `RedisCache` | ✅ | ⬜ | K | |
-| 2.9 | Supabase Auth setup | 🔄 | ⬜ | K | |
+| 2.9 | Supabase Auth setup | ✅ | ⬜ | K | |
 | 2.10 | JWT validation FastAPI dependency | 🔲 | ⬜ | K | `get_current_user` |
 | 2.11 | Supabase Storage bucket setup | 🔲 | ⬜ | K | |
 | 📝 | **Phase 2 quiz** | — | ⬜ | K | Must pass before Phase 3 |
