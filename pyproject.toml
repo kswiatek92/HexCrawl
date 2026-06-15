@@ -22,7 +22,7 @@ dev = [
     "pytest-asyncio",
     "pytest-cov",
     "hypothesis",
-    "testcontainers[postgres]",
+    "testcontainers[postgres,redis]",
 ]
 
 [tool.ruff]
