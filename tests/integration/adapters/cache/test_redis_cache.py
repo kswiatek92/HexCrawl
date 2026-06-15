@@ -14,10 +14,10 @@ against a flushed, dedicated Redis DB.
 import asyncio
 
 import pytest
-from redis.asyncio import Redis
+from redis.asyncio import Redis, from_url
 from redis.exceptions import ConnectionError as RedisConnectionError
 
-from src.adapters.cache.redis_cache import RedisCache, create_redis_client
+from src.adapters.cache.redis_cache import RedisCache
 
 
 async def test_round_trips_value_through_real_redis(
@@ -107,7 +107,12 @@ async def test_failure_propagates_not_swallowed() -> None:
     # miss. A client pointed at an unreachable port must surface a ConnectionError
     # from `get`, not return None (a silent fallback that hides the outage is the
     # anti-pattern; graceful degradation belongs in the use case, not the adapter).
-    dead = create_redis_client("redis://127.0.0.1:1/0")
+    # Bounded socket timeouts keep the failure deterministic: connecting to an
+    # unreachable endpoint must surface a ConnectionError promptly rather than
+    # hanging on a long OS-level connect timeout. Built via from_url directly
+    # (not the adapter's create_redis_client, which takes no kwargs) — the
+    # factory is already exercised by the live integration fixtures.
+    dead = from_url("redis://127.0.0.1:1/0", socket_connect_timeout=1, socket_timeout=1)
     redis_cache = RedisCache(dead)
     try:
         with pytest.raises(RedisConnectionError):
