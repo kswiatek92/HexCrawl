@@ -6,8 +6,10 @@ requires-python = ">=3.12"
 dependencies = [
     "alembic>=1.13",
     "asyncpg>=0.29",
+    "fastapi>=0.115",
     "pydantic>=2.13.4",
     "pydantic-settings>=2.14.1",
+    "pyjwt[crypto]>=2.9",
     "redis>=8.0.0",
     "sqlalchemy[asyncio]>=2.0.51",
     "structlog>=26.1.0",
@@ -39,6 +41,9 @@ target-version = ["py312"]
 [tool.mypy]
 python_version = "3.12"
 strict = true
+# pydantic-settings fills required fields (e.g. jwt_secret) from the environment
+# at runtime, so `Settings()` takes no args — the plugin teaches mypy that.
+plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
 module = ["src.domain.*", "src.application.*"]
