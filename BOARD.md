@@ -102,7 +102,7 @@ Weeks/dates below are **remaining work projected from 2026-06-08** at 10 h/week.
 | 2.8 | Integration tests for `RedisCache` | ✅ | ⬜ | K | |
 | 2.9 | Supabase Auth setup | ✅ | ⬜ | K | |
 | 2.10 | JWT validation FastAPI dependency | ✅ | ⬜ | K | `get_current_user` |
-| 2.11 | Supabase Storage bucket setup | 🔄 | ⬜ | K | |
+| 2.11 | Supabase Storage bucket setup | ✅ | ⬜ | K | private `saves` (pre-signed URLs) + public-read `avatars`; runbook in docs/storage-setup.md |
 | 📝 | **Phase 2 quiz** | — | ⬜ | K | Must pass before Phase 3 |
 
 ---
