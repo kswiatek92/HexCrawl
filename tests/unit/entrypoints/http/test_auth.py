@@ -45,6 +45,17 @@ class _FakeJWKClient:
         return SimpleNamespace(key=self._public_key)
 
 
+class _NoMatchingKeyJWKClient:
+    """A JWK client that finds no key for the token — unknown/absent ``kid``.
+
+    Mirrors what the real ``PyJWKClient`` raises when the token's ``kid`` is not
+    in the JWKS (forged/rotated key) or the JWKS fetch fails.
+    """
+
+    def get_signing_key_from_jwt(self, token: str) -> Any:
+        raise jwt.PyJWKClientError("Unable to find a signing key that matches")
+
+
 @pytest.fixture
 def rsa_key() -> RSAPrivateKey:
     return rsa.generate_private_key(public_exponent=65537, key_size=2048)
@@ -157,6 +168,27 @@ def test_non_uuid_sub_is_rejected(verifier: SupabaseJWTVerifier, rsa_key: RSAPri
 
     with pytest.raises(jwt.InvalidTokenError):
         verifier.verify(token)
+
+
+def test_unknown_kid_is_rejected_as_invalid_token(rsa_key: RSAPrivateKey) -> None:
+    # PyJWKClientError (no matching kid) is NOT a subclass of InvalidTokenError;
+    # verify must normalise it so the edge's `except InvalidTokenError` catches
+    # it and returns 401 instead of letting it bubble up as a 500.
+    verifier = SupabaseJWTVerifier(_NoMatchingKeyJWKClient(), issuer=ISSUER, audience=AUDIENCE)
+    token = _encode(rsa_key, payload=_claims())
+
+    with pytest.raises(jwt.InvalidTokenError):
+        verifier.verify(token)
+
+
+def test_clock_skew_within_leeway_is_accepted(
+    verifier: SupabaseJWTVerifier, rsa_key: RSAPrivateKey
+) -> None:
+    # A token that expired a few seconds ago is still accepted within the
+    # configured clock-skew leeway (30s).
+    token = _encode(rsa_key, payload=_claims(exp_delta=timedelta(seconds=-5)))
+
+    assert verifier.verify(token).user_id is not None
 
 
 # --- build_verifier wiring ------------------------------------------------------

@@ -46,6 +46,7 @@ event-loop discipline ``RedisCache`` follows (QUIZZES task 2.7 Q3).
 
 import asyncio
 from dataclasses import dataclass
+from datetime import timedelta
 from functools import lru_cache
 from typing import Annotated, Protocol
 from uuid import UUID
@@ -54,7 +55,7 @@ import jwt
 import structlog
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from jwt import InvalidTokenError, PyJWK, PyJWKClient
+from jwt import InvalidTokenError, PyJWK, PyJWKClient, PyJWKClientError
 
 from src.config import Settings
 
@@ -69,6 +70,15 @@ _SUPABASE_JWT_ALGORITHMS = ("RS256", "ES256")
 # verifies aud/iss/exp when given the values; ``require`` additionally rejects a
 # token that simply omits any of them.
 _REQUIRED_CLAIMS = ("exp", "sub", "aud", "iss")
+
+# Tolerance for clock drift between this resource server and Supabase when
+# checking exp/iat/nbf — without it, a few seconds of skew can spuriously reject
+# a freshly issued (or near-expiry) token.
+_CLOCK_SKEW_LEEWAY = timedelta(seconds=30)
+
+# Cap the blocking JWKS fetch so a hung Supabase endpoint can't pin a thread for
+# the urllib default (30s). Only paid on a cache miss / key rotation.
+_JWKS_FETCH_TIMEOUT_SECONDS = 5
 
 
 @dataclass(frozen=True)
@@ -122,17 +132,27 @@ class SupabaseJWTVerifier:
         """Verify ``token`` and return the principal, or raise.
 
         Raises an :class:`jwt.InvalidTokenError` subclass on any failure:
-        unknown ``kid``, bad signature, wrong/none algorithm, expired token,
-        wrong ``aud``/``iss``, a missing required claim, or a ``sub`` that is
-        not a UUID.
+        unknown/absent ``kid``, bad signature, wrong/none algorithm, expired
+        token, wrong ``aud``/``iss``, a missing required claim, or a ``sub``
+        that is not a UUID.
         """
-        signing_key = self._jwk_client.get_signing_key_from_jwt(token)
+        try:
+            signing_key = self._jwk_client.get_signing_key_from_jwt(token)
+        except PyJWKClientError as exc:
+            # No matching ``kid`` (or none in the header) is a property of the
+            # *token*, but PyJWKClientError is a sibling of InvalidTokenError,
+            # not a subclass — so the edge's `except InvalidTokenError` would
+            # miss it and 500. Normalise it into the rejection family → 401.
+            # (A JWKS-fetch outage also surfaces as PyJWKClientError; treating
+            # that as 401 rather than 503 is an accepted v1 simplification.)
+            raise InvalidTokenError("no signing key matches the token") from exc
         payload = jwt.decode(
             token,
             signing_key.key,
             algorithms=self._algorithms,
             audience=self._audience,
             issuer=self._issuer,
+            leeway=_CLOCK_SKEW_LEEWAY,
             options={"require": list(_REQUIRED_CLAIMS)},
         )
         try:
@@ -158,7 +178,7 @@ def build_verifier(settings: Settings) -> SupabaseJWTVerifier:
     matches the token's ``kid`` to the right public key, refetching on rotation.
     """
     return SupabaseJWTVerifier(
-        PyJWKClient(settings.supabase_jwks_url),
+        PyJWKClient(settings.supabase_jwks_url, timeout=_JWKS_FETCH_TIMEOUT_SECONDS),
         issuer=settings.supabase_issuer,
         audience=settings.supabase_jwt_audience,
     )
@@ -195,8 +215,9 @@ async def get_current_user(
     try:
         return await asyncio.to_thread(verifier.verify, credentials.credentials)
     except InvalidTokenError as exc:
+        # Debug, not info: a client spamming bad tokens shouldn't flood logs.
         # Never log the token itself — only why it was rejected.
-        logger.info("jwt_verification_failed", error=type(exc).__name__)
+        logger.debug("jwt_verification_failed", error=type(exc).__name__)
         raise _unauthorized("invalid or expired token") from exc
 
 
