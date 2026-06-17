@@ -112,7 +112,7 @@ Weeks/dates below are **remaining work projected from 2026-06-08** at 10 h/week.
 
 | # | Task | Status | Quiz | Who | Notes |
 |---|------|--------|------|-----|-------|
-| 3.1 | `StartGame` use case | 🔲 | ⬜ | K | |
+| 3.1 | `StartGame` use case | 🔄 | ⬜ | K | |
 | 3.2 | `ProcessTurn` use case | 🔲 | ⬜ | K | Redis → service → Redis |
 | 3.3 | `SubmitScore` use case | 🔲 | ⬜ | K | Triggers Celery task |
 | 3.4 | FastAPI app setup | 🔲 | ⬜ | K | lifespan, CORS, routers |
