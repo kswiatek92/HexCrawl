@@ -38,6 +38,7 @@ an adapter, never ``fastapi`` / ``sqlalchemy`` / ``redis`` / ``celery``.
 """
 
 import random
+from typing import Final
 from uuid import UUID, uuid4
 
 import structlog
@@ -57,7 +58,7 @@ logger = structlog.get_logger(__name__)
 # Seeds are unpredictable run identifiers, not cryptographic secrets; 63 bits
 # keeps the value a non-negative signed-64-bit int (comfortably within the
 # Postgres BIGINT the seed column uses).
-_SEED_BITS = 63
+_SEED_BITS: Final[int] = 63
 
 
 class StartGame:
@@ -108,17 +109,22 @@ class StartGame:
         # but does not commit — the ambient request transaction (task 3.4) does.
         saved_dungeon, saved_player = await self._games.save(dungeon, player)
 
+        # Serialise outside the try: this is pure, in-process work that should
+        # never fail. If it ever does (e.g. a model field the codec forgot), we
+        # want that bug to surface loudly, not be swallowed as a "cache failure".
+        blob = serialize_game_state(saved_dungeon, saved_player)
+
         # Best-effort cache seed: Redis holds a rebuildable copy, so a failure
         # here must not fail the command. We deliberately catch broadly — the
         # cache port's contract is that infra faults *propagate*, and swallowing
         # them is precisely this use case's call (QUIZZES.md task 3.1 Q4).
         try:
-            await self._cache.set(
-                game_state_cache_key(dungeon_id),
-                serialize_game_state(saved_dungeon, saved_player),
-                GAME_STATE_TTL_SECONDS,
+            await self._cache.set(game_state_cache_key(dungeon_id), blob, GAME_STATE_TTL_SECONDS)
+        except Exception as exc:  # noqa: BLE001 — intentional: cache is rebuildable derived state
+            logger.warning(
+                "start_game_cache_seed_failed",
+                dungeon_id=str(dungeon_id),
+                error=type(exc).__name__,
             )
-        except Exception:  # noqa: BLE001 — intentional: cache is rebuildable derived state
-            logger.warning("start_game_cache_seed_failed", dungeon_id=str(dungeon_id))
 
         return saved_dungeon, saved_player
