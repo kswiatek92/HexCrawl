@@ -79,6 +79,7 @@ from src.domain.models.turn_event import (
     TurnEvent,
 )
 from src.domain.services.enemy_ai import decide_action as ai_decide
+from src.domain.services.spawn import spawn_position
 
 _DAMAGE_VARIANCE: Final[int] = 1  # symmetric ±1 swing per hit
 _MIN_DAMAGE: Final[int] = 1  # floor so armor-stacking can't trivialise combat
@@ -250,24 +251,8 @@ def _player_descend(
         return
     dungeon.current_floor_index = next_index
     new_floor = dungeon.floors[next_index]
-    player.position = _first_walkable(new_floor)
+    player.position = spawn_position(new_floor)
     result.events.append(FloorDescended(new_floor_index=next_index))
-
-
-def _first_walkable(floor: Floor) -> tuple[int, int]:
-    """Return the first FLOOR-or-STAIRS tile in row-major scan order.
-
-    v1 placeholder for spawn placement: when ``Floor`` gains a proper
-    ``spawn_position`` field (driven by ``DungeonGenerator`` once it
-    starts placing up-stairs), this helper goes away. Falls back to
-    ``(0, 0)`` only for the degenerate case of a fully blocked floor —
-    which never happens with the generator's connectivity guarantee.
-    """
-    for y, row in enumerate(floor.tiles):
-        for x, tile in enumerate(row):
-            if tile is TileType.FLOOR or tile is TileType.STAIRS:
-                return (x, y)
-    return (0, 0)
 
 
 def _run_enemy_ai(
