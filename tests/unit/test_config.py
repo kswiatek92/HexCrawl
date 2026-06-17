@@ -46,6 +46,35 @@ def test_supabase_jwt_audience_env_override(monkeypatch: pytest.MonkeyPatch) -> 
     assert Settings(_env_file=None).supabase_jwt_audience == "service"
 
 
+def test_supabase_storage_buckets_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("JWT_SECRET", "test-secret")
+    monkeypatch.delenv("SUPABASE_STORAGE_SAVES_BUCKET", raising=False)
+    monkeypatch.delenv("SUPABASE_STORAGE_AVATARS_BUCKET", raising=False)
+
+    settings = Settings(_env_file=None)
+
+    assert settings.supabase_storage_saves_bucket == "saves"
+    assert settings.supabase_storage_avatars_bucket == "avatars"
+
+
+def test_supabase_storage_saves_bucket_env_override(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("JWT_SECRET", "test-secret")
+    monkeypatch.setenv("SUPABASE_STORAGE_SAVES_BUCKET", "runs")
+
+    assert Settings(_env_file=None).supabase_storage_saves_bucket == "runs"
+
+
+def test_supabase_storage_avatars_bucket_env_override(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("JWT_SECRET", "test-secret")
+    monkeypatch.setenv("SUPABASE_STORAGE_AVATARS_BUCKET", "portraits")
+
+    assert Settings(_env_file=None).supabase_storage_avatars_bucket == "portraits"
+
+
 def test_supabase_issuer_derived_from_url(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("JWT_SECRET", "test-secret")
     monkeypatch.setenv("SUPABASE_URL", "https://abc.supabase.co")

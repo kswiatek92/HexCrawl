@@ -15,6 +15,8 @@ class Settings(BaseSettings):
     supabase_anon_key: str = ""
     supabase_service_role_key: str = ""
     supabase_jwt_audience: str = "authenticated"
+    supabase_storage_saves_bucket: str = "saves"
+    supabase_storage_avatars_bucket: str = "avatars"
 
     def _supabase_base_url(self) -> str:
         """Normalised Supabase base URL, or fail loud if unconfigured.
