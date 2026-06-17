@@ -10,10 +10,15 @@ only carries the configuration (the bucket names, in `src/config.py`) the backen
 Supabase Storage is S3-compatible **object storage**. HexCrawl uses it for blobs that don't
 belong in Postgres:
 
-| Bucket    | Privacy       | Holds                          | Key layout                       |
-|-----------|---------------|--------------------------------|----------------------------------|
-| `saves`   | **private**   | Save-file snapshots (JSON)     | `saves/{user_id}/{game_id}.json` |
-| `avatars` | **public-read** | Player profile images        | `avatars/{user_id}.png`          |
+| Bucket    | Privacy         | Holds                      | Object path *within the bucket* |
+|-----------|-----------------|----------------------------|---------------------------------|
+| `saves`   | **private**     | Save-file snapshots (JSON) | `{user_id}/{game_id}.json`      |
+| `avatars` | **public-read** | Player profile images      | `{user_id}.png`                 |
+
+Note the bucket name and the object path are **separate arguments** to the Storage API
+(`from_("saves").create_signed_url("{user_id}/{game_id}.json", …)`) — the path does **not**
+repeat the bucket. Writing `saves/{user_id}/…` as the path would create a doubly-nested
+`saves/saves/…` object.
 
 The backend is the only writer. For private `saves`, clients never touch the bucket
 directly with a long-lived credential — the backend either streams through a privileged
@@ -81,17 +86,18 @@ Prefer pre-signed URLs because they:
 
 ## The authorisation rule (do not skip)
 
-The key layout `saves/{user_id}/{game_id}.json` gives us, for free:
+Within the `saves` bucket, the object-path layout `{user_id}/{game_id}.json` gives us, for free:
 
-- **Listing / per-user scoping** — `list("saves/{user_id}/")` returns just that user's saves.
-- **Lifecycle rules** — retention/cleanup can target a prefix.
-- **Debuggability** — a key tells you whose save it is at a glance.
+- **Listing / per-user scoping** — `from_("saves").list("{user_id}/")` returns just that user's saves.
+- **Lifecycle rules** — retention/cleanup can target a path prefix.
+- **Debuggability** — a path tells you whose save it is at a glance.
 
-But the prefix is **not an authorisation boundary**. Nothing stops a caller from *asking* for
-`saves/{someone-elses-id}/{game_id}.json`. So **before** minting any pre-signed URL or
-streaming any object, the backend **must verify ownership server-side**: the `sub` from the
-verified JWT (`get_current_user`, task 2.10) must match the `{user_id}` in the requested key
-(and, for game-scoped reads, that `{game_id}` belongs to that user). AuthN happens at the edge;
+But the path prefix is **not an authorisation boundary**. Nothing stops a caller from *asking*
+for another user's object path (`{someone-elses-id}/{game_id}.json`) in the same bucket. So
+**before** minting any pre-signed URL or streaming any object, the backend **must verify
+ownership server-side**: the `sub` from the verified JWT (`get_current_user`, task 2.10) must
+match the `{user_id}` segment of the requested path (and, for game-scoped reads, that
+`{game_id}` belongs to that user). AuthN happens at the edge;
 **authZ happens next to the resource** — same split as the auth runbook. Trusting the key
 prefix alone would be an IDOR (insecure direct object reference).
 
