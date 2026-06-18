@@ -95,9 +95,11 @@ def deserialize_game_state(blob: str) -> tuple[Dungeon, Player]:
     ``json.loads`` is untyped (its result is ``Any``); rather than annotate
     ``Any`` — forbidden in the application layer — the parsed values are
     narrowed to concrete types with localized :func:`cast` at each branch.
-    A malformed blob (missing key, wrong shape) raises ``KeyError`` /
-    ``ValueError`` from the conversions, which the caller treats as a
-    corrupt cache entry — not a normal outcome.
+    A malformed blob raises from the conversions — ``KeyError`` (missing
+    key), ``ValueError`` (a bad ``UUID`` / enum value), or ``TypeError`` (the
+    decoded JSON, or a nested value, isn't the dict/list the indexing
+    expects). The caller treats any of these as a corrupt cache entry — not a
+    normal outcome.
     """
     payload = json.loads(blob)
     dungeon = _dungeon_from_dict(cast("dict[str, object]", payload["dungeon"]))

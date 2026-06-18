@@ -91,8 +91,12 @@ class ProcessTurn:
 
         # Durable checkpoint first so an interrupt before the cache write can
         # never lose a game-over/descent (QUIZZES.md task 3.3 Q4 ordering).
+        # ``save`` returns the canonical post-write pair (it may carry
+        # adapter-refreshed fields, per IGameRepository); rebind so the cache
+        # write below reflects what was durably saved rather than diverging
+        # from it (mirrors StartGame).
         if result.game_over or _is_checkpoint(result):
-            await self._games.save(dungeon, player)
+            dungeon, player = await self._games.save(dungeon, player)
 
         # Refresh the hot working copy every turn. Errors propagate: the cache
         # is the authoritative copy of mid-game state, so a failed write must
