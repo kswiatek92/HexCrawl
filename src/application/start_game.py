@@ -60,6 +60,12 @@ logger = structlog.get_logger(__name__)
 # Postgres BIGINT the seed column uses).
 _SEED_BITS: Final[int] = 63
 
+# A persisted seed must fit the BIGINT (signed 64-bit) column it lands in
+# (adapters/db/models.py). Server-generated seeds are always in range; a
+# client-supplied seed is validated against these bounds.
+_SEED_MIN: Final[int] = -(2**63)
+_SEED_MAX: Final[int] = 2**63 - 1
+
 
 class StartGame:
     """Use case: create and persist a new dungeon run.
@@ -87,8 +93,18 @@ class StartGame:
         without the domain leaking outward (QUIZZES.md task 3.1 Q3).
 
         ``seed`` defaults to a fresh server-random value; callers pass an
-        explicit seed for daily / shared-seed leaderboard modes.
+        explicit seed for daily / shared-seed leaderboard modes. An explicit
+        seed must fit the BIGINT seed column — out-of-range raises
+        ``ValueError`` here (a clear, early application error) rather than
+        surfacing later as an opaque DB ``DataError``. We reject rather than
+        clamp: silently altering a shared seed would break the run
+        reproducibility that daily/shared-seed modes depend on.
         """
+        if seed is not None and not (_SEED_MIN <= seed <= _SEED_MAX):
+            raise ValueError(
+                f"seed must be within signed 64-bit range "
+                f"[{_SEED_MIN}, {_SEED_MAX}], got {seed}"
+            )
         resolved_seed = seed if seed is not None else random.getrandbits(_SEED_BITS)
         dungeon_id = uuid4()
 

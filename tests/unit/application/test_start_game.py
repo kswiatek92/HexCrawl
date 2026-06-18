@@ -10,6 +10,8 @@ and the cache-failure tolerance.
 import json
 from uuid import UUID, uuid4
 
+import pytest
+
 from src.application.game_state import GAME_STATE_TTL_SECONDS, game_state_cache_key
 from src.application.start_game import StartGame
 from src.domain.models import Dungeon, Player, TileType
@@ -145,3 +147,21 @@ async def test_distinct_runs_get_distinct_ids() -> None:
     # Same seed, but each run is its own resource with its own id.
     assert first.dungeon_id != second.dungeon_id
     assert len(games.saved) == 2
+
+
+@pytest.mark.parametrize("bad_seed", [2**63, -(2**63) - 1, 10**40])
+async def test_explicit_seed_out_of_bigint_range_is_rejected(bad_seed: int) -> None:
+    # A client seed that won't fit the BIGINT column fails early and clearly
+    # here, not later as an opaque DB DataError. Nothing is persisted.
+    games = FakeGameRepository()
+    with pytest.raises(ValueError, match="signed 64-bit range"):
+        await StartGame(games, FakeCachePort()).execute(uuid4(), "hero", seed=bad_seed)
+    assert games.saved == {}
+
+
+@pytest.mark.parametrize("edge_seed", [2**63 - 1, -(2**63), 0])
+async def test_explicit_seed_at_range_boundaries_is_accepted(edge_seed: int) -> None:
+    dungeon, _ = await StartGame(FakeGameRepository(), FakeCachePort()).execute(
+        uuid4(), "hero", seed=edge_seed
+    )
+    assert dungeon.seed == edge_seed
