@@ -12,6 +12,7 @@ from uuid import UUID, uuid4
 
 from src.application.game_state import (
     GAME_STATE_TTL_SECONDS,
+    deserialize_game_state,
     game_state_cache_key,
     serialize_game_state,
 )
@@ -165,3 +166,37 @@ def test_serialize_player_fields() -> None:
         "defense": 2,
         "damage_taken": 5,
     }
+
+
+def test_serialize_deserialize_round_trips_to_equal_pair() -> None:
+    # The codec's load-bearing guarantee: deserialize is the exact inverse of
+    # serialize, so ProcessTurn (3.2) loads back the same (Dungeon, Player) it
+    # cached. Equality reaches into floors/enemies/items (dataclass __eq__), so
+    # a single mistranslated field — a list-not-tuple position, a str-not-enum
+    # tile, a missing dict-key split — fails this assertion.
+    dungeon, player = _dungeon_and_player()
+
+    restored_dungeon, restored_player = deserialize_game_state(
+        serialize_game_state(dungeon, player)
+    )
+
+    assert restored_dungeon == dungeon
+    assert restored_player == player
+
+
+def test_deserialize_rebuilds_typed_values_not_raw_json() -> None:
+    # Guards against "looks right as JSON, wrong as domain": positions must be
+    # tuples (not lists), enums must be enum members (not bare str), and the
+    # ground-items key must be an (int, int) tuple — not the "x,y" wire string.
+    dungeon, player = _dungeon_and_player()
+
+    restored_dungeon, restored_player = deserialize_game_state(
+        serialize_game_state(dungeon, player)
+    )
+    floor = restored_dungeon.floors[0]
+
+    assert isinstance(restored_player.position, tuple)
+    assert floor.tiles[0][2] is TileType.STAIRS
+    assert restored_dungeon.floors[0].enemies[0].behaviour is BehaviourType.MELEE
+    assert (1, 1) in floor.items
+    assert floor.items[(1, 1)][0].item_type is ItemType.POTION

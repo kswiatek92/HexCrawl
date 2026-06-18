@@ -29,17 +29,28 @@ The two codecs are deliberately *not* shared: they sit on opposite sides of
 the hexagon (application vs adapter), and coupling them would drag a
 framework dependency across the boundary.
 
-Only the *serialise* direction lives here for now — ``StartGame`` (3.1)
-writes the initial state and never reads it back. The matching
-``deserialize_game_state`` is ``ProcessTurn``'s (3.2) first need and lands
-with that task, against the format documented here.
+Both directions live here. ``serialize_game_state`` is the write side
+(``StartGame`` 3.1 seeds the initial blob; ``ProcessTurn`` 3.2 rewrites it
+each turn); ``deserialize_game_state`` is the read side ``ProcessTurn`` (3.2)
+uses to load the active run before mutating it. The two are exact inverses
+over the wire format documented above — :func:`deserialize_game_state` of
+:func:`serialize_game_state` round-trips to an equal ``(Dungeon, Player)``.
 """
 
 import json
-from typing import Final
+from typing import Final, cast
 from uuid import UUID
 
-from src.domain.models import Dungeon, Enemy, Floor, Item, Player
+from src.domain.models import (
+    BehaviourType,
+    Dungeon,
+    Enemy,
+    Floor,
+    Item,
+    ItemType,
+    Player,
+    TileType,
+)
 
 # 2 hours, matching CLAUDE.md's "TTL 2h" for active game state. A run that
 # goes idle past this window expires from the cache and is rebuilt from the
@@ -69,6 +80,29 @@ def serialize_game_state(dungeon: Dungeon, player: Player) -> str:
         "player": _player_to_dict(player),
     }
     return json.dumps(payload)
+
+
+def deserialize_game_state(blob: str) -> tuple[Dungeon, Player]:
+    """Rebuild the ``(dungeon, player)`` pair from a cached JSON string.
+
+    The exact inverse of :func:`serialize_game_state`: it consumes the wire
+    format documented in the module docstring and reconstructs the domain
+    dataclasses (UUIDs from their ``str`` form, ``(x, y)`` tuples from
+    ``[x, y]`` arrays, ``StrEnum`` members from their wire strings, the
+    ground-items dict from its ``"x,y"`` keys). ``ProcessTurn`` (3.2) calls
+    this to load the active run from the cache before mutating it.
+
+    ``json.loads`` is untyped (its result is ``Any``); rather than annotate
+    ``Any`` — forbidden in the application layer — the parsed values are
+    narrowed to concrete types with localized :func:`cast` at each branch.
+    A malformed blob (missing key, wrong shape) raises ``KeyError`` /
+    ``ValueError`` from the conversions, which the caller treats as a
+    corrupt cache entry — not a normal outcome.
+    """
+    payload = json.loads(blob)
+    dungeon = _dungeon_from_dict(cast("dict[str, object]", payload["dungeon"]))
+    player = _player_from_dict(cast("dict[str, object]", payload["player"]))
+    return dungeon, player
 
 
 def _dungeon_to_dict(dungeon: Dungeon) -> dict[str, object]:
@@ -137,3 +171,86 @@ def _player_to_dict(player: Player) -> dict[str, object]:
         "defense": player.defense,
         "damage_taken": player.damage_taken,
     }
+
+
+# --- decode: the inverse of the _*_to_dict encoders above ------------------
+
+
+def _position_from_list(data: object) -> tuple[int, int]:
+    # Positions serialise as a 2-element [x, y] array; JSON has no tuple type,
+    # so rebuild the (x, y) tuple the domain models expect.
+    x, y = cast("list[int]", data)
+    return (x, y)
+
+
+def _dungeon_from_dict(data: dict[str, object]) -> Dungeon:
+    floors = cast("list[dict[str, object]]", data["floors"])
+    return Dungeon(
+        dungeon_id=UUID(cast("str", data["dungeon_id"])),
+        seed=cast("int", data["seed"]),
+        floors=[_floor_from_dict(floor) for floor in floors],
+        current_floor_index=cast("int", data["current_floor_index"]),
+        turn_count=cast("int", data["turn_count"]),
+    )
+
+
+def _floor_from_dict(data: dict[str, object]) -> Floor:
+    tiles = cast("list[list[str]]", data["tiles"])
+    enemies = cast("list[dict[str, object]]", data["enemies"])
+    return Floor(
+        floor_id=UUID(cast("str", data["floor_id"])),
+        tiles=[[TileType(value) for value in row] for row in tiles],
+        enemies=[_enemy_from_dict(enemy) for enemy in enemies],
+        items=_items_from_dict(cast("dict[str, object]", data["items"])),
+        stairs_down=_position_from_list(data["stairs_down"]),
+    )
+
+
+def _enemy_from_dict(data: dict[str, object]) -> Enemy:
+    return Enemy(
+        enemy_id=UUID(cast("str", data["enemy_id"])),
+        name=cast("str", data["name"]),
+        position=_position_from_list(data["position"]),
+        behaviour=BehaviourType(cast("str", data["behaviour"])),
+        hp=cast("int", data["hp"]),
+        max_hp=cast("int", data["max_hp"]),
+        attack=cast("int", data["attack"]),
+        defense=cast("int", data["defense"]),
+        awake=cast("bool", data["awake"]),
+    )
+
+
+def _items_from_dict(
+    data: dict[str, object],
+) -> dict[tuple[int, int], list[Item]]:
+    # Ground items are keyed "x,y" on the wire (JSON object keys must be
+    # strings); split each back into the (x, y) tuple the domain dict uses.
+    result: dict[tuple[int, int], list[Item]] = {}
+    for key, stack in data.items():
+        x_str, y_str = key.split(",")
+        items = cast("list[dict[str, object]]", stack)
+        result[(int(x_str), int(y_str))] = [_item_from_dict(item) for item in items]
+    return result
+
+
+def _item_from_dict(data: dict[str, object]) -> Item:
+    return Item(
+        item_id=UUID(cast("str", data["item_id"])),
+        name=cast("str", data["name"]),
+        item_type=ItemType(cast("str", data["item_type"])),
+        effect=cast("int", data["effect"]),
+        count=cast("int", data["count"]),
+    )
+
+
+def _player_from_dict(data: dict[str, object]) -> Player:
+    return Player(
+        user_id=UUID(cast("str", data["user_id"])),
+        name=cast("str", data["name"]),
+        position=_position_from_list(data["position"]),
+        hp=cast("int", data["hp"]),
+        max_hp=cast("int", data["max_hp"]),
+        attack=cast("int", data["attack"]),
+        defense=cast("int", data["defense"]),
+        damage_taken=cast("int", data["damage_taken"]),
+    )
