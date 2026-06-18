@@ -108,6 +108,12 @@ Active game state lives in Redis (TTL 2h). Persisted to PostgreSQL only on:
 - floor descent (checkpoint)
 - explicit save
 
+The Redis entry is the `(Dungeon, Player)` pair, keyed `game:{dungeon_id}` and JSON-serialised
+by `src/application/game_state.py` (`game_state_cache_key`, `serialize_game_state`,
+`GAME_STATE_TTL_SECONDS`). Serialisation lives in the **application layer**, never in the cache
+adapter (which stays a generic `str` store) — see `domain/ports/cache_port.py`. Use cases share
+this module: `StartGame` seeds it; `ProcessTurn` reads/writes it.
+
 ---
 
 ## API surface (planned)
