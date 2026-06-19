@@ -93,7 +93,7 @@ Rules:
 - [ ] WebSocket auth — JWT in query string, `Sec-WebSocket-Protocol`, or first client message? (task 3.9)
 - [ ] Error response shape — FastAPI default, or RFC 7807 Problem Details? (task 3.13)
 - [ ] API versioning — `/v1/` prefix from the start, or add later? (task 3.4)
-- [ ] `SubmitScore` — sync-persist then enqueue recalc, or enqueue both? (task 3.3)
+- [x] `SubmitScore` — sync-persist then enqueue recalc, or enqueue both? (task 3.3) → **Sync-persist then enqueue recalc.** Within the use case's own transaction (UoW): synchronously write the `Score` row via `IScoreRepository` and commit, **then** enqueue a Celery `score_recalc` task for the async leaderboard-cache rebuild. The score is the user's run result and must not be lost to a dropped message / down worker, so it gets a transactional DB write and a real success/failure response; the leaderboard recalc is derived cache work and is eventually-consistent by nature (matches CLAUDE.md's `score_recalc` = "Async leaderboard rebuild (non-blocking)"). Hexagonal fit: use case owns the transaction boundary (ADR-0006), persists through the port, then fires the task — no domain/app coupling to Celery beyond a task-enqueue port. Trade-off accepted: one synchronous DB round-trip before returning, in exchange for data safety on the one write that must not be lost.
 
 ---
 
