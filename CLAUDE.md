@@ -48,7 +48,7 @@ src/
 ├── domain/                  # Pure Python. No framework deps. Ever.
 │   ├── models/              # Dataclasses: Player, Dungeon, Floor, Enemy, Item, Score
 │   ├── services/            # GameService, ScoreService, DungeonGenerator
-│   └── ports/               # Protocol interfaces: IGameRepo, IScoreRepo, ICachePort
+│   └── ports/               # Protocol interfaces: IGameRepo, IScoreRepo, ICachePort, IScoreRecalcQueue
 │
 ├── application/             # Use cases. Orchestrates domain services.
 │   ├── start_game.py        # CreateGame use case
@@ -139,6 +139,12 @@ this module: `StartGame` seeds it; `ProcessTurn` reads/writes it.
 | `score_recalc`        | After every game over    | Async leaderboard rebuild (non-blocking) |
 | `map_generation`      | On floor descent (deep)  | Offload heavy BSP gen for floors 10+     |
 | `weekly_leaderboard`  | Celery Beat — Mon 00:00  | Archive + reset weekly scores            |
+
+The application layer never imports Celery. `SubmitScore` enqueues `score_recalc`
+through the `IScoreRecalcQueue` port (`domain/ports/score_recalc_queue.py`); the
+concrete Celery producer in `adapters/tasks/` lands in Phase 4 (task 4.2/4.7). The
+port carries a `score_id`, never a domain object — task args cross a process boundary
+and must be JSON-serialisable, not pickled.
 
 ---
 
