@@ -114,7 +114,7 @@ Weeks/dates below are **remaining work projected from 2026-06-08** at 10 h/week.
 |---|------|--------|------|-----|-------|
 | 3.1 | `StartGame` use case | ✅ | ⬜ | K | seed→floor0→persist→cache; serializer in `application/game_state.py` |
 | 3.2 | `ProcessTurn` use case | ✅ | ⬜ | K | Redis → service → Redis |
-| 3.3 | `SubmitScore` use case | 🔄 in progress | ⬜ | K | Triggers Celery task |
+| 3.3 | `SubmitScore` use case | ✅ | ⬜ | K | sync-persist Score → enqueue score_recalc via IScoreRecalcQueue; deterministic score_id (idempotent); abandoned → no score |
 | 3.4 | FastAPI app setup | 🔲 | ⬜ | K | lifespan, CORS, routers |
 | 3.5 | Auth endpoints | 🔲 | ⬜ | K | register + login |
 | 3.6 | `POST /game/start` | 🔲 | ⬜ | K | |
