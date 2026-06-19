@@ -21,6 +21,12 @@ the defect. You only need to **identify** the bug in words — you never have to
 (this quiz is meant to be takeable from a phone or terminal). If you miss it, the grader will **not**
 reveal the bug — it stays open so you can re-attempt later; ask explicitly if you want the answer.
 
+**Cross-cutting appendix banks** (after the project-wide decisions quiz): **A — Advanced Python**
+(object model, concurrency, typing internals; assumes you're past the Phase-1 basics), **B — Frontend
+craft** (the React syntax, DOM, and CSS the Phase-5 banks deliberately skipped), and **C — DevOps &
+platform engineering** (deploys, observability, reliability, supply chain — beyond the AWS specifics in
+Phase 6). These are interview-prep banks, not gated by any phase — take them whenever. Same 90% bar.
+
 > Note: the Phase 1 task quizzes (1.1–1.19) were rewritten away from game trivia toward these
 > fundamentals. If `BOARD.md` still shows them as 🏆 passed, treat that as stale — the material is new
 > and worth re-taking.
@@ -933,3 +939,160 @@ reveal the bug — it stays open so you can re-attempt later; ask explicitly if 
 9. The `import-linter` CI gate is deliberately scheduled to land at the Phase 1 → Phase 2 boundary, not earlier and not later. What hexagonal-architecture risk *first appears* in Phase 2 (and why couldn't it appear in Phase 1)? What concrete cost do you pay by retrofitting the gate after, say, Phase 3 is done?
 
 10. HexCrawl is MIT-licensed. Given the project framing in `CLAUDE.md` ("portfolio centrepiece… vehicle for learning"), what concrete value do you lose by choosing **Apache-2.0** instead, and what concrete value do you lose by choosing **proprietary**? Name one situation where the MIT default would be the wrong call.
+
+---
+---
+
+## Appendix A — Advanced Python (cross-cutting, mid→senior)
+
+> Supplements the per-task Python questions. Assumes you're comfortable with the basics (functions,
+> classes, comprehensions, the Phase-1 dataclass material) and pushes into the object model, concurrency,
+> and typing internals that separate a mid from a senior Python engineer. 10 questions, need 9/10.
+
+1. **GIL.** State precisely what the GIL protects (CPython reference-count / bytecode-execution integrity) and what it does **not** prevent (a race on a compound operation like `n += 1` across threads). Why does `threading` still help an I/O-bound workload but do nothing for a CPU-bound one, and what changes under free-threaded ("no-GIL") CPython 3.13t? Map HexCrawl's workloads — turn processing, BSP generation, awaiting Postgres/Redis — onto asyncio (in-process I/O concurrency) vs Celery (separate processes for CPU-bound work).
+
+2. **asyncio object model.** Distinguish a **coroutine**, a **Task**, and a **Future**. What does `await` actually do at the event-loop level (suspend the coroutine, yield control to the loop, resume on a callback)? Why does `await asyncio.gather(a(), b())` run `a` and `b` concurrently while `await a(); await b()` runs them sequentially even though both use `await`?
+
+3. **Find the bug** — this async handler stalls the entire event loop under load:
+   ```python
+   async def process(session, game_id):
+       data = requests.get(f"http://cache/{game_id}").json()  # sync HTTP
+       return await session.get(DungeonRow, game_id)
+   ```
+   Identify the defect and name the rule it breaks ("never block the event loop"). What's the escape hatch for an unavoidable blocking/CPU call (`asyncio.to_thread` / `run_in_executor`), and why doesn't that help a *CPU-bound* call as much as an I/O one?
+
+4. **Structured concurrency.** `asyncio.gather(*tasks)` vs `asyncio.TaskGroup` (3.11+): on a partial failure, what does a TaskGroup do that bare `gather` does not (cancel siblings, propagate an `ExceptionGroup`)? Describe the classic `gather` footgun where one task raises and the others leak and keep running.
+
+5. **Generators & laziness.** Explain how a generator pipeline `gen3(gen2(gen1(src)))` processes one item end-to-end at a time in O(1) memory, versus building intermediate lists. What does `yield from` add over a manual `for … : yield`? Where in HexCrawl would streaming over a large query beat materialising a list?
+
+6. **Context managers.** Spell out the `__enter__`/`__exit__` contract. What does returning a truthy value from `__exit__` do (suppress the exception), and why is that a footgun? Give the async variant (`__aenter__`/`__aexit__`) and point to two places HexCrawl relies on one (the FastAPI `lifespan`, `async with session.begin()`).
+
+7. **Descriptors.** `@property`, bound methods, `classmethod`, and `staticmethod` are all descriptors. Define a **data descriptor** (`__set__`/`__delete__`) vs a **non-data descriptor** (`__get__` only), and explain the precedence rule: a data descriptor beats an instance `__dict__` entry, a non-data descriptor loses to it. How does that explain why you can shadow a method by assigning an instance attribute but not a `@property`?
+
+8. **Find the bug** — every handler prints `2`:
+   ```python
+   handlers = [lambda: print(i) for i in range(3)]
+   for h in handlers:
+       h()
+   ```
+   Name the mechanism (late binding of the free variable `i`) and give the two standard fixes (default-arg capture vs a factory/`functools.partial`).
+
+9. **`__slots__` & memory.** What does `__slots__` change about instance storage (`__dict__` → fixed descriptors), what two things does it cost (no dynamic attributes, multiple-inheritance constraints), and why must `@dataclass(slots=True)` *recreate* the class rather than mutate it in place? Roughly how much memory do you save across 10,000 `Enemy` instances, and why?
+
+10. **The eq/hash contract.** State the invariant linking `__eq__` and `__hash__` (`a == b ⇒ hash(a) == hash(b)`). Why does defining `__eq__` alone make a class unhashable, how does `@dataclass(frozen=True)` restore hashability, and what concretely breaks if two "equal" objects hash differently when used as `dict`/`set` keys?
+
+11. **Memoisation traps.** What makes a function safe to wrap in `functools.lru_cache` (purity + hashable args)? Why is `lru_cache` on a *method* a memory leak (it pins `self` for the cache's lifetime), and when is `functools.cached_property` the right tool instead?
+
+12. **Variance.** Explain `TypeVar`, `Generic[T]`, and **invariant** vs **covariant** vs **contravariant** type parameters. Why is `list[Enemy]` *not* a subtype of `list[Entity]` (mutation makes it unsound), while a read-only `Sequence[Enemy]` can safely be treated covariantly? Tie this to why HexCrawl's ports speak concrete domain types.
+
+13. **Protocols vs ABCs, deeper.** At type-check time vs runtime, how does a `typing.Protocol` differ from an `ABC` for a port? What does `@runtime_checkable` actually verify, and — the footgun — what does it **not** verify (method signatures, just names)? Why does that make `isinstance(x, MyProtocol)` a weak correctness guarantee?
+
+14. **CPython memory management.** Reference counting + the cyclic garbage collector: why can't refcounting alone reclaim a `Dungeon ↔ Floor` back-reference cycle, and what does the `gc` module do about it? Why were `__del__` methods on objects in a cycle historically problematic, and when do you reach for `weakref`?
+
+15. **Exception design.** `raise NewError from original` vs a bare `raise NewError` inside an `except`: what's the difference in the traceback (`__cause__` vs `__context__`)? What is an **ExceptionGroup** and the `except*` syntax (3.11), and where does it arise naturally in this codebase (a `TaskGroup` with several concurrent failures)?
+
+---
+---
+
+## Appendix B — Frontend craft: React syntax, DOM & CSS
+
+> The Phase-5 banks drilled the rendering *model* and hooks and deliberately skipped concrete syntax,
+> DOM mechanics, and CSS. This bank fills that gap — still anchored to HexCrawl's canvas client, HUD, and
+> leaderboard where natural. 10 questions, need 9/10.
+
+**React syntax**
+
+1. **JSX is not HTML.** What does `<Tile x={c} />` compile to (the `jsx`/`createElement` runtime call)? Use that to explain three "why"s: why `class` becomes `className`, why a component must return a single root (or `<>…</>` Fragment), and why JSX expressions go in `{}` but you can't put an `if` statement there.
+
+2. **Keys & reconciliation.** Why does React need a `key` on list children, and what does it use them for when diffing? **Find the bug** — after the inventory is re-sorted, each row's local state (an open tooltip) ends up on the wrong item:
+   ```jsx
+   {items.map((it, i) => <InventoryRow key={i} item={it} />)}
+   ```
+   Name the rule this violates and the fix.
+
+3. **Controlled vs uncontrolled.** Define both using the login form. Explain the "the input is read-only / I can't type" bug that appears when you pass `value={x}` with no `onChange`, and the inverse (uncontrolled-then-controlled) warning React emits.
+
+4. **Find the bug** — the HUD renders a stray `0` when the inventory is empty:
+   ```jsx
+   {inventory.length && <Inventory items={inventory} />}
+   ```
+   Explain why `&&` leaks the falsy `0` into the DOM (vs `false`/`null` rendering nothing) and give the idiomatic fix.
+
+5. **Stale closures.** **Find the bug** — the on-screen turn counter freezes at 1:
+   ```jsx
+   useEffect(() => {
+     const id = setInterval(() => setTurn(turn + 1), 1000);
+     return () => clearInterval(id);
+   }, []);
+   ```
+   Name the cause (the effect captured `turn === 0` once) and the two correct fixes (functional updater `setTurn(t => t + 1)` vs declaring `turn` a dependency) and the trade-off between them.
+
+6. **Context re-renders.** Why does *every* consumer of a Context re-render when the provider's `value` changes identity? Why does `<Ctx.Provider value={{ user, setUser }}>` (a fresh object literal each render) trigger needless re-renders, and what are the two standard mitigations (memoise the value / split contexts)?
+
+**DOM**
+
+7. **Bubbling, capturing, delegation.** Explain event bubbling vs capturing and how attaching one `keydown` listener on `document` (the input handler) leans on **delegation**. Contrast `event.stopPropagation()` with `event.preventDefault()` — what does each actually stop?
+
+8. **Reflow vs repaint.** Which operations force a synchronous **reflow (layout)** vs only a **repaint**? Define **layout thrashing** (interleaving layout reads and writes in a loop) and explain the read-all-then-write-all fix.
+
+9. **The rendering pipeline.** Why animate with `transform`/`opacity` rather than `top`/`left`/`width`/`height`? Walk the browser pipeline (style → layout → paint → composite) and explain how transform/opacity can jump straight to the **compositor** (GPU), skipping layout and paint — and how that's the same "let the platform schedule the work" idea as `requestAnimationFrame`.
+
+10. **DOM XSS.** `el.innerHTML = userText` vs `el.textContent = userText`: which opens a DOM-based XSS hole and why? How does React's JSX escape interpolated values by default, and what does `dangerouslySetInnerHTML` deliberately reintroduce? Tie back to the leaderboard rendering usernames from the API.
+
+**CSS**
+
+11. **Box model.** What does `box-sizing: border-box` change about how the rendered width is computed, and why do CSS resets set it globally? Walk a concrete example: a `width: 200px; padding: 16px; border: 2px` box under `content-box` vs `border-box`.
+
+12. **Specificity.** Rank these by specificity and say which wins: an inline `style=`, `#hud .score`, `.hud .score.active`, `div.score`. How is specificity computed as an (a,b,c)-style tuple, and where does `!important` sit? **Find the bug** — "my `.score { color: red }` won't apply" when a `#hud .score { color: white }` rule also exists; what's the real cause and two clean fixes (not `!important`)?
+
+13. **Flexbox vs Grid.** Give the one-line "reach for X when…" rule for each, then map them onto HexCrawl: the HUD bar (HP / floor / score in one row) vs the leaderboard (a 2-D table of rank/name/score). On a flex row, what do `justify-content` and `align-items` control (main vs cross axis)?
+
+14. **Positioning & stacking.** Contrast `position: relative | absolute | fixed | sticky` (what each is positioned relative to). What creates a new **stacking context**, and why does `z-index: 9999` sometimes "not work" because an ancestor opened one? Where is `position: sticky` the right tool in the leaderboard?
+
+15. **Units & responsiveness.** `px` vs `rem` vs `em` vs `%` vs `vh/vw`: when does each shine, and why does sizing fonts/spacing in `rem` respect user accessibility settings in a way `px` doesn't? Sketch how a media query would switch the leaderboard from a side-by-side to a stacked layout on narrow screens.
+
+---
+---
+
+## Appendix C — DevOps & platform engineering
+
+> Phase 6 walked HexCrawl's specific AWS build-out. This bank drills the transferable platform fundamentals
+> — deploys, observability, reliability, supply chain — that generalise past AWS and show up in every infra
+> interview. 10 questions, need 9/10.
+
+1. **Twelve-factor.** Name the factors HexCrawl most directly exercises — config in the environment, stateless processes, backing services as attached resources, logs as event streams to stdout, dev/prod parity, disposability — and explain how each shows up concretely in this codebase (e.g. Redis/Postgres as attached resources, structured JSON to stdout, one image per role via `CMD`).
+
+2. **Deploy strategies.** Define **rolling**, **blue/green**, and **canary**. For HexCrawl's WebSocket turn loop, why do long-lived connections complicate every one of them, and what does "**drain** the old tasks" mean? Which strategy gives the cleanest instant rollback, and at what cost?
+
+3. **Three pillars of observability** — logs, metrics, traces. What question does each answers best? Why is structured JSON to stdout the right primitive (vs the app calling a vendor SDK)? Define a **correlation / trace id** and describe threading one from the WS handler → `process_turn` → the enqueued Celery `score_recalc` task.
+
+4. **Health probes.** Define **liveness**, **readiness**, and **startup** probes. **Find the design bug** — `/health` returns 200 the instant the process starts, before the DB pool and Redis are connected. What outage does that cause during a rolling deploy (traffic routed to a not-ready task), and which probe distinction fixes it?
+
+5. **SLI / SLO / SLA + error budget.** Define each precisely. The Phase-3 quiz set a `<50 ms` leaderboard latency target — express it as an SLI plus an SLO (e.g. "99% of reads < 50 ms over 30 days"). How does an **error budget** turn that SLO into a ship/freeze decision?
+
+6. **Graceful shutdown.** On scale-in, ECS sends **SIGTERM**, waits a grace period, then SIGKILL. Lay out the correct sequence for the FastAPI app: stop accepting new connections/turns, drain in-flight work, close the DB and Redis pools, exit. **Find the bug** — a server that ignores SIGTERM and leans on `restart: always`; what does the user experience during every deploy?
+
+7. **Infrastructure as Code.** What does Terraform/CloudFormation buy you over click-ops? What is the **state file**, why is **drift** dangerous, and why must an `apply` be **idempotent**? Contrast a declarative model with an imperative provisioning script you run once.
+
+8. **Container internals.** A container is not a VM. Name the two Linux kernel primitives behind it — **namespaces** (isolation: pid, net, mount, …) and **cgroups** (CPU/memory limits) — and connect an image's **layers** (union filesystem) back to the Phase-6 Dockerfile layer-caching question.
+
+9. **Supply-chain security.** Define an **SBOM**, image **signing** (e.g. cosign), and a **distroless / non-root** image. Why is "pin the base image by digest + scan with Trivy + run as non-root + emit an SBOM" defense-in-depth rather than four ways of doing one thing? Name the attack each step blunts.
+
+10. **Secrets.** Why is a DB password in a task-definition env var leakier than one pulled from Secrets Manager/SSM at runtime (console/API visibility, image layers, logs)? What does **rotation** demand of the app? **Find the risk** — a `DATABASE_URL` with credentials baked into the Docker image at build time.
+
+11. **Autoscaling.** Define **horizontal** vs **vertical** scaling and **target-tracking** autoscaling. Why is CPU a misleading scale signal for an I/O-bound async app, and what's a better one (request count, concurrency, or queue depth)? What is the **cold-start** penalty on scale-out, and how does it interact with the `<50 ms` budget?
+
+12. **Backups & DR.** Define **RPO** and **RTO**. Classify HexCrawl's datastores by tolerable loss: Postgres leaderboard/scores (low RPO — back up aggressively) vs Redis active game state (rebuildable/ephemeral — higher tolerance). How does that classification drive where you spend backup effort?
+
+13. **Artifact discipline.** Why build the image **once** and promote the *same* immutable artifact through dev → staging → prod, rather than rebuilding per environment? What bug class does "rebuild on prod" reintroduce, and where do legitimate environment differences belong instead?
+
+14. **Find the bug** — this CD step reports success on a broken deploy:
+    ```yaml
+    deploy:
+      steps:
+        - run: aws ecs update-service --force-new-deployment ...
+        - run: echo "deployed ✅"
+    ```
+    What's missing (wait-for-services-stable / health verification / automatic rollback), and why is "the `update-service` API returned 200" not the same as "the new tasks are healthy and serving"?
+
+15. **Rate limiting & circuit breakers.** Where does a **rate limiter** belong (edge / ALB / app) vs a **circuit breaker** (client-side, wrapping a flaky dependency)? For the "Redis is down" scenario, explain how a circuit breaker stops a retry storm from turning a partial outage into a full one, and what the **half-open** state is for.
