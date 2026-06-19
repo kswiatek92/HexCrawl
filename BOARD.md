@@ -30,7 +30,7 @@ Assignees: `K` = Krzysztof · `?` = unassigned / open for collaborator
 Vibe coding with AI assistance. Estimates include quiz time and ~20% debugging buffer.
 Total: **77 tasks across 6 phases, ~84 sessions, ~17 weeks (~4 months) end-to-end.**
 
-Anchored forward from **2026-06-08**: **24/77 tasks done** (Phase 1 complete; Phase 2 at 2/11; three CI tasks done early in Phase 6). Remaining: **~13 weeks (~3 months)** → target completion **mid-September 2026**.
+Anchored forward from **2026-06-08**. As of **2026-06-19**: **35/77 tasks done** (Phases 1 & 2 complete; Phase 3 at 2/15; three CI tasks done early in Phase 6). Remaining: **42 tasks**, ~**11 weeks (~2.5 months)** → target completion **late August–mid-September 2026**. Phase 2 closed ahead of its late-June estimate.
 
 > ⚠️ Task counts and "done" figures are real (counted from the tables below). The **Sessions / Weeks / Target** columns are estimates, not commitments — adjust as real velocity lands.
 
@@ -43,8 +43,8 @@ Weeks/dates below are **remaining work projected from 2026-06-08** at 10 h/week.
 | Milestone | Phase | Tasks (done/total) | Sessions (rem.) | Weeks (rem.) | Target date |
 |-----------|-------|--------------------|-----------------|--------------|-------------|
 | M1 — Domain core | Phase 1 | 19/19 ✅ | — | — | **done** |
-| M2 — Data persists | Phase 2 | 2/11 | ~11 | ~2 | late June 2026 |
-| M3 — Playable via API + WS | Phase 3 | 0/15 | ~18 | ~3.5 | mid-to-late July 2026 |
+| M2 — Data persists | Phase 2 | 11/11 ✅ | — | — | **done** |
+| M3 — Playable via API + WS | Phase 3 | 2/15 | ~15 | ~3 | mid-to-late July 2026 |
 | **M3 = backend MVP** | | | | | **Turn loop over HTTP/WS, scores persist** |
 | M4 — Async workers live | Phase 4 | 0/7 | ~9 | ~2 | early August 2026 |
 | M5 — Browser game playable | Phase 5 | 0/12 | ~14 | ~3 | late August 2026 |
@@ -222,4 +222,4 @@ _(move tasks here as they complete)_
 
 ---
 
-*Last updated: 2026-04 — Krzysztof*
+*Last updated: 2026-06-19 — Krzysztof*
