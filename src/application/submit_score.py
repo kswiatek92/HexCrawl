@@ -8,7 +8,7 @@ the seam the WebSocket handler (task 3.9) and the abandon endpoint (task 3.8)
 call at game over.
 
 Like every use case it is *orchestration*, not game rule: the scoring formula
-lives in the domain (``ScoreService.compute_score`` → ``compute_score_value``,
+lives in the domain (the ``compute_score`` service function → ``compute_score_value``,
 ADR-0002); this module only wires that service to the persistence ports in the
 right order. Bound by the hexagonal golden rule — it imports domain models, the
 domain ports, and the domain service only; never an adapter, never a framework.
@@ -31,7 +31,7 @@ retry is harmless: the task rebuilds from the durable store.
 
 **Abandoned runs score nothing (AskUserQuestion this turn; QUIZZES.md 1.18 Q3).**
 "An abandoned run = no leaderboard score" is an orchestration policy, so it
-lives here, not in the pure ``ScoreService``. ``execute`` short-circuits before
+lives here, not in the pure ``compute_score`` service. ``execute`` short-circuits before
 computing, persisting, or enqueuing anything. The caller passes ``abandoned``,
 derived from a ``RunAbandoned`` event in the run's final ``TurnResult``.
 
@@ -96,7 +96,7 @@ class SubmitScore:
 
         ``kills`` is caller-supplied: no domain model carries a kill counter,
         so the caller aggregates ``EnemyKilled`` events over the run and passes
-        the total (``ScoreService.compute_score`` was designed for this). Items
+        the total (``compute_score`` was designed for this). Items
         are not yet pickable in v1 (``PickUp`` is ``not_implemented_v1``), so
         the item multiplier rides ``compute_score``'s empty default.
 
@@ -112,7 +112,7 @@ class SubmitScore:
 
         # Deterministic id → the DB's ON CONFLICT (score_id) makes a retried
         # submit idempotent (one score per run). computed_at is stamped here,
-        # at the impure boundary, never inside the pure ScoreService.
+        # at the impure boundary, never inside the pure compute_score service.
         score = compute_score(
             dungeon,
             player,

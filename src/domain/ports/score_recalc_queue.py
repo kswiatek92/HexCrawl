@@ -21,11 +21,16 @@ Design choices:
   adapters conform structurally, the dependency arrow stays
   ``adapters → ports``, and the test fake needs no inheritance.
 * **Pass the ``score_id``, never a domain object** — a task argument crosses
-  a process boundary and must be a minimal, JSON-serialisable payload, not a
+  a process boundary and must be a minimal, serialisable identifier, not a
   pickled ``Dungeon`` / ``Score`` (QUIZZES.md task 3.3 Q2; mirrors the
   JSON-not-pickle cache-serialisation choice). The worker re-reads whatever
   it needs from Postgres by id, so the leaderboard rebuild always runs
   against the durable copy rather than a snapshot that may already be stale.
+  The port speaks the **domain ``UUID`` type**, not ``str``: a raw ``UUID`` is
+  not JSON-serialisable by default, so the Celery adapter stringifies it for
+  the wire (``str(score_id)``) — serialisation is the *adapter's* job. Keeping
+  the port domain-typed mirrors ``IScoreRepository`` speaking ``Score`` (not
+  ``dict``): ports speak domain types, adapters own the wire format.
 * **One method, no admin surface** (ISP) — the only producer is
   ``SubmitScore``. No ``cancel``, no ``enqueue_weekly_reset`` (that task is
   Celery-Beat-scheduled, not use-case-triggered): they would force the test
