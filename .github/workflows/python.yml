@@ -17,7 +17,7 @@ jobs:
     outputs:
       has_python: ${{ steps.check.outputs.has_python }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - id: check
         run: |
           if [ -f "pyproject.toml" ] || [ -d "src" ]; then
@@ -33,7 +33,7 @@ jobs:
     if: needs.preflight.outputs.has_python == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
@@ -50,7 +50,7 @@ jobs:
     if: needs.preflight.outputs.has_python == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
@@ -91,7 +91,7 @@ jobs:
       CELERY_BROKER_URL: redis://localhost:6379/1
       CELERY_RESULT_BACKEND: redis://localhost:6379/2
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
