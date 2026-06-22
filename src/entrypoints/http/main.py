@@ -21,6 +21,7 @@ Architecture:
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from urllib.parse import urlsplit, urlunsplit
 
 import structlog
 from fastapi import APIRouter, FastAPI
@@ -32,6 +33,24 @@ from src.config import Settings
 from src.entrypoints.http import router_auth, router_game, router_leaderboard
 
 logger = structlog.get_logger(__name__)
+
+
+def _scrub_dsn(url: str) -> str:
+    """Return the DSN with the password component replaced by '***'.
+
+    Prevents credentials from appearing in structured logs when startup
+    logs the configured database/Redis URLs for diagnostics.
+    """
+    parts = urlsplit(url)
+    if parts.password:
+        # netloc = [user[:password]@]host[:port] — rebuild without the secret.
+        netloc = parts.hostname or ""
+        if parts.port:
+            netloc = f"{netloc}:{parts.port}"
+        if parts.username:
+            netloc = f"{parts.username}:***@{netloc}"
+        parts = parts._replace(netloc=netloc)
+    return urlunsplit(parts)
 
 
 @asynccontextmanager
@@ -51,7 +70,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     redis_client = create_redis_client(settings.redis_url)
     app.state.redis_client = redis_client
 
-    logger.info("app_startup", database_url=settings.database_url, redis_url=settings.redis_url)
+    logger.info(
+        "app_startup",
+        database_url=_scrub_dsn(settings.database_url),
+        redis_url=_scrub_dsn(settings.redis_url),
+    )
     yield
 
     await engine.dispose()
