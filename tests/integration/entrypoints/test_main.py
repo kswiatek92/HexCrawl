@@ -9,6 +9,8 @@ endpoints depend on session or Redis resources.
 ``cors_origins`` value, avoiding a real ``.env`` file requirement in CI.
 """
 
+from collections.abc import Iterator
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -20,12 +22,13 @@ _BLOCKED_ORIGIN = "http://evil.example.com"
 
 
 @pytest.fixture(scope="module")
-def client() -> TestClient:
+def client() -> Iterator[TestClient]:
     settings = Settings(
         jwt_secret="test-secret",
         cors_origins=[_ALLOWED_ORIGIN],
     )
-    return TestClient(create_app(settings), raise_server_exceptions=True)
+    with TestClient(create_app(settings), raise_server_exceptions=True) as c:
+        yield c
 
 
 # ---------------------------------------------------------------------------
