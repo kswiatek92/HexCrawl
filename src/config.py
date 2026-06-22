@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     supabase_jwt_audience: str = "authenticated"
     supabase_storage_saves_bucket: str = "saves"
     supabase_storage_avatars_bucket: str = "avatars"
+    cors_origins: list[str] = ["http://localhost:5173"]
 
     def _supabase_base_url(self) -> str:
         """Normalised Supabase base URL, or fail loud if unconfigured.
