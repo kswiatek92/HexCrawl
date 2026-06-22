@@ -48,6 +48,12 @@ How to pre-load a relationship in one shot. **joined** = single `LEFT JOIN` — 
 **Code-review tell:** an unconditional transform on a dependency's return value (`raw.decode(...)`, `resp.json()[0]`) with no type/shape guard, especially when hidden behind a `cast(...)` that suppresses the type checker instead of handling the variance. The "liberal accept" must still end in an explicit `else: raise` — liberal ≠ silent.
 **Reference:** RFC 1122 §1.2.2 (Postel's law); the bytes/str fix in `src/adapters/cache/redis_cache.py` (`get`).
 
+### Ports speak domain types; adapters own serialisation
+A port (the abstract interface the domain/application depends on) should be typed in **domain terms** — `UUID`, `Score`, a dataclass — never in a transport's wire shape (`str`, `dict`, JSON). Converting to/from the wire format (stringifying a `UUID`, `json.dumps`, pickling) is the **adapter's** job, on the far side of the boundary.
+**Why it matters:** keeping the port domain-typed preserves type safety for every caller and stops a transport choice (Celery's JSON serializer, Redis's bytes) from leaking inward — the whole point of hexagonal. Downgrading the port to `str` "because the wire needs a string" pushes serialisation up into the use case and couples the domain to a format it shouldn't know.
+**Code-review tell:** a port method typed `str`/`dict`/`bytes` where a domain type would do, justified by "the broker/cache needs it that way." The fix is a domain-typed signature with the conversion living in the adapter — not a relaxed port. A raw `UUID` not being JSON-serialisable is the adapter's problem to solve (`str(score_id)`), not the port's to absorb.
+**Reference:** `IScoreRecalcQueue` (`src/domain/ports/score_recalc_queue.py`) keeping `enqueue(score_id: UUID)` while the Celery adapter stringifies; mirrors `IScoreRepository` speaking `Score` not `dict`. Copilot review on PR #60.
+
 ---
 
 ## 3 — Testing
@@ -67,6 +73,7 @@ A test that asserts "the dependency is down → we raise" must build its client 
 - **Identity Map / Unit of Work** — session caches one object per PK; tracks mutations and flushes them as one ordered batch on commit.
 - **Normalisation vs JSONB blob** — tables/FKs = queryable + integrity; JSONB = read-as-blob simplicity but SQL-opaque, no FK/schema.
 - **Robustness principle (adapter input tolerance)** — accept every shape a wrapped client can return (bytes *and* str), but end the liberal-accept in an explicit `else: raise`, never a silent `cast`.
+- **Ports speak domain types; adapters own serialisation** — type a port in domain terms (`UUID`, `Score`), never the wire shape (`str`/`dict`); stringifying/`json.dumps` belongs in the adapter, not a relaxed port signature.
 - **Bounded timeouts on connection-failure tests** — a "dependency is down → we raise" test must set a short connect/read timeout, or its latency is at the mercy of the OS connect timeout (RST = instant, DROP = hang/flake).
 
 ---
