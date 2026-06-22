@@ -1,3 +1,4 @@
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -17,6 +18,21 @@ class Settings(BaseSettings):
     supabase_jwt_audience: str = "authenticated"
     supabase_storage_saves_bucket: str = "saves"
     supabase_storage_avatars_bucket: str = "avatars"
+    cors_origins: list[str] = ["http://localhost:5173"]
+
+    @field_validator("cors_origins", mode="before")
+    @classmethod
+    def _parse_cors_origins(cls, v: object) -> object:
+        """Accept either a JSON list or a comma-separated string.
+
+        pydantic-settings v2 requires JSON for list[str] by default, which
+        means CORS_ORIGINS=https://a,https://b would raise a ValidationError.
+        This validator makes the comma-separated form valid too, matching the
+        documented decision in QUESTIONS.md (task 3.4).
+        """
+        if isinstance(v, str):
+            return [o.strip() for o in v.split(",") if o.strip()]
+        return v
 
     def _supabase_base_url(self) -> str:
         """Normalised Supabase base URL, or fail loud if unconfigured.
