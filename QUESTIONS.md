@@ -87,12 +87,12 @@ Rules:
 
 ## Phase 3 — Application use cases + API
 
-- [ ] Rate limiting — none, in-process (slowapi), or Redis-backed? (task 3.4)
-- [ ] CORS allowed origins — `localhost:5173` for dev; prod domain TBD. (task 3.4)
+- [x] Rate limiting — none, in-process (slowapi), or Redis-backed? (task 3.4) → **None for v1.** No external consumers yet; add `slowapi` in Phase 6 when real infra lands — it's a one-file change.
+- [x] CORS allowed origins — `localhost:5173` for dev; prod domain TBD. (task 3.4) → **`["http://localhost:5173"]` hardcoded for dev; read from a `CORS_ORIGINS` env var (comma-separated) for prod.** Twelve-factor pattern, consistent with existing env config approach.
 - [ ] Leaderboard pagination — cursor or offset/limit? Page size? (tasks 3.10–3.12)
 - [ ] WebSocket auth — JWT in query string, `Sec-WebSocket-Protocol`, or first client message? (task 3.9)
 - [ ] Error response shape — FastAPI default, or RFC 7807 Problem Details? (task 3.13)
-- [ ] API versioning — `/v1/` prefix from the start, or add later? (task 3.4)
+- [x] API versioning — `/v1/` prefix from the start, or add later? (task 3.4) → **`/v1/` prefix from the start.** Single `prefix="/v1"` on the router, zero ongoing cost, avoids a breaking change if any client ever caches the unversioned path.
 - [x] `SubmitScore` — sync-persist then enqueue recalc, or enqueue both? (task 3.3) → **Sync-persist then enqueue recalc.** Within the use case's own transaction (UoW): synchronously write the `Score` row via `IScoreRepository` (the repo flushes/merges but does **not** commit — the request-scoped Unit of Work owns the commit, per ADR-0006), **then** enqueue a Celery `score_recalc` task for the async leaderboard-cache rebuild. The score is the user's run result and must not be lost to a dropped message / down worker, so it gets a transactional DB write and a real success/failure response; the leaderboard recalc is derived cache work and is eventually-consistent by nature (matches CLAUDE.md's `score_recalc` = "Async leaderboard rebuild (non-blocking)"). Hexagonal fit: use case owns the transaction boundary (ADR-0006), persists through the port, then fires the task — no domain/app coupling to Celery beyond a task-enqueue port. Trade-off accepted: one synchronous DB round-trip before returning, in exchange for data safety on the one write that must not be lost.
 
 ---
