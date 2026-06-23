@@ -14,10 +14,11 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 
+from src.application.abandon_game import AbandonGame
 from src.application.get_game import GameNotFoundError, GetGame, NotGameOwnerError
 from src.application.start_game import StartGame
 from src.entrypoints.http.auth import AuthenticatedUser, get_current_user
-from src.entrypoints.http.dependencies import get_get_game, get_start_game
+from src.entrypoints.http.dependencies import get_abandon_game, get_get_game, get_start_game
 from src.entrypoints.http.schemas import GameStateResponse, StartGameRequest
 
 router = APIRouter(prefix="/game", tags=["game"])
@@ -64,6 +65,33 @@ async def get_game(
     belongs to another user — ownership is decided in the use case beside the
     data (``auth.py`` Q5), never at this edge. The token's identity is the only
     source of the caller's id; the path carries the resource, not the principal.
+    """
+    try:
+        dungeon, player = await use_case.execute(game_id, current_user.user_id)
+    except GameNotFoundError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "game not found") from exc
+    except NotGameOwnerError as exc:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "not your game") from exc
+    return GameStateResponse.from_domain(dungeon, player)
+
+
+@router.post("/{game_id}/abandon")
+async def abandon_game(
+    game_id: UUID,
+    current_user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+    use_case: Annotated[AbandonGame, Depends(get_abandon_game)],
+) -> GameStateResponse:
+    """End an existing run owned by the caller, without scoring it.
+
+    Returns ``200`` with the run's final ``GameStateResponse`` — the same shape
+    ``POST /start`` and ``GET /{id}`` emit. An abandoned run earns no
+    leaderboard entry (the use case runs no score path).
+
+    Failure outcomes mirror ``GET /{id}`` exactly: ``404`` when no run exists for
+    the id, ``403`` when the run exists but belongs to another user. Ownership is
+    decided in the use case, beside the data (``auth.py`` Q5), and checked before
+    any state change — a non-owner can never abandon someone else's run. A
+    non-UUID ``{game_id}`` is rejected as ``422`` before the use case runs.
     """
     try:
         dungeon, player = await use_case.execute(game_id, current_user.user_id)
