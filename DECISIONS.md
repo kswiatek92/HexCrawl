@@ -45,7 +45,7 @@ Two sources of truth disagreed; this ADR picks one.
 **The backend exposes no `/auth/register` or `/auth/login` route.** Sign-up,
 login, and token refresh are owned by the **frontend** via the Supabase JS SDK,
 which holds the credentials and the refresh token. The backend stays a
-stateless resource server: every protected route `Depends(get_current_user)`,
+stateless resource server: each protected route (3.6+) will `Depends(get_current_user)`,
 which *verifies* the access-token JWT the frontend obtained (task 2.10) and
 reads `sub` as the principal. The backend never sees a password or a refresh
 token.

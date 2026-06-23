@@ -134,8 +134,8 @@ this module: `StartGame` seeds it; `ProcessTurn` reads/writes it.
 > The backend is a stateless resource server: it only *verifies* Supabase access-token
 > JWTs (`get_current_user`, task 2.10) and never sees credentials or refresh tokens.
 > Sign-up / login / token refresh run on the **frontend** via the Supabase JS SDK
-> (`docs/auth-setup.md`; QUESTIONS.md Phase 2). Every backend `/game` and `/leaderboard/me`
-> route then `Depends(get_current_user)` on the bearer token the frontend obtained.
+> (`docs/auth-setup.md`; QUESTIONS.md Phase 2). Each backend `/game` and `/leaderboard/me`
+> route (3.6+) will then `Depends(get_current_user)` on the bearer token the frontend obtained.
 
 ---
 
