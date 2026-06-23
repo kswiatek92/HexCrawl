@@ -119,7 +119,7 @@ Weeks/dates below are **remaining work projected from 2026-06-08** at 10 h/week.
 | 3.5 | Auth endpoints | ✅ | ⬜ | K | Frontend-only auth (Supabase SDK); backend verify-only, no routes — ADR-0007 |
 | 3.6 | `POST /game/start` | ✅ | ⬜ | K | 201 + Location + full game state; auth via get_current_user; GameStateResponse shared with 3.7 |
 | 3.7 | `GET /game/{id}` | ✅ | ⬜ | K | cache-first/PG-fallback read (no write-back); authZ in use case → 403 foreign / 404 missing; reuses GameStateResponse |
-| 3.8 | `POST /game/{id}/abandon` | 🔄 | ⬜ | K | |
+| 3.8 | `POST /game/{id}/abandon` | ✅ | ⬜ | K | AbandonGame use case: load→authZ→domain Abandon→PG checkpoint→cache refresh; no score; 200 + final state, 403 foreign / 404 missing (mirrors 3.7) |
 | 3.9 | `WS /ws/game/{session_id}` | 🔲 | ⬜ | K | Full turn loop |
 | 3.10 | `GET /leaderboard/global` | 🔲 | ⬜ | K | Served from Redis cache |
 | 3.11 | `GET /leaderboard/weekly` | 🔲 | ⬜ | K | |
