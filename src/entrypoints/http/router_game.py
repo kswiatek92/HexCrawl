@@ -21,11 +21,7 @@ from src.entrypoints.http.schemas import GameStateResponse, StartGameRequest
 router = APIRouter(prefix="/game", tags=["game"])
 
 
-@router.post(
-    "/start",
-    status_code=status.HTTP_201_CREATED,
-    response_model=GameStateResponse,
-)
+@router.post("/start", status_code=status.HTTP_201_CREATED)
 async def start_game(
     body: StartGameRequest,
     current_user: Annotated[AuthenticatedUser, Depends(get_current_user)],
