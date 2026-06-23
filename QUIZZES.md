@@ -490,11 +490,15 @@ Phase 6). These are interview-prep banks, not gated by any phase — take them w
 
 ### Task 3.5 — Auth endpoints
 
-1. `access_token` vs `refresh_token`: their lifetimes, where each is sent, and why short-lived access + long-lived refresh limits the blast radius of a leaked token.
-2. Should the backend store passwords? If you hashed locally, which algorithm family (argon2/bcrypt, never a fast hash) and why salt + slow? Here Supabase owns it — what does that change about your responsibility?
-3. Wrong-password login returns `401`, not `403`. Restate the authN-vs-authZ distinction and why `403` would imply "authenticated but forbidden."
+> **Note (ADR-0007):** task 3.5 resolved that the backend exposes **no** login/register
+> route — auth is verify-only (`get_current_user`, task 2.10); the frontend owns sign-up /
+> login / refresh via the Supabase SDK. The questions below are framed to that reality.
+
+1. `access_token` vs `refresh_token`: their lifetimes, where each is sent, and why short-lived access + long-lived refresh limits the blast radius of a leaked token. (Who holds each here — frontend SDK vs backend?)
+2. Should the backend store passwords? If you hashed locally, which algorithm family (argon2/bcrypt, never a fast hash) and why salt + slow? Here Supabase owns it *and* the backend never sees the credential at all — what does that change about your responsibility and attack surface?
+3. A request with a missing, malformed, or expired token returns `401` from `get_current_user`, while an ownership failure ("not your game") is `403`. Restate the authN-vs-authZ distinction and why `403` would imply "authenticated but forbidden." (Why does the backend never need to return a "wrong password" error?)
 4. Why is `Authorization: Bearer <token>` preferred over a cookie for an API, and what does that imply about CSRF exposure (a header isn't auto-sent → less CSRF, but more XSS token-theft surface)?
-5. Statelessness: why does putting identity in a *verifiable token* (vs a server-side session) make horizontal scaling easier? Tie to the twelve-factor "stateless processes" rule.
+5. Statelessness: why does putting identity in a *verifiable token* (vs a server-side session) make horizontal scaling easier? Tie to the twelve-factor "stateless processes" rule, and to why a verify-only backend needs no auth routes of its own.
 
 ---
 
