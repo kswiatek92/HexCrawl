@@ -27,6 +27,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.adapters.cache.redis_cache import RedisCache
 from src.adapters.db.game_repository import PostgresGameRepository
+from src.application.get_game import GetGame
 from src.application.start_game import StartGame
 from src.config import Settings
 
@@ -88,3 +89,11 @@ def get_start_game(
 ) -> StartGame:
     """Assemble the ``StartGame`` use case from its injected ports."""
     return StartGame(games, cache)
+
+
+def get_get_game(
+    games: Annotated[PostgresGameRepository, Depends(get_game_repository)],
+    cache: Annotated[RedisCache, Depends(get_cache)],
+) -> GetGame:
+    """Assemble the ``GetGame`` read use case from its injected ports."""
+    return GetGame(games, cache)
