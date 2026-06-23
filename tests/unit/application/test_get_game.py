@@ -11,7 +11,11 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from src.application.game_state import game_state_cache_key, serialize_game_state
+from src.application.game_state import (
+    GAME_STATE_TTL_SECONDS,
+    game_state_cache_key,
+    serialize_game_state,
+)
 from src.application.get_game import GameNotFoundError, GetGame, NotGameOwnerError
 from src.domain.models import Dungeon, Floor, Player, TileType
 
@@ -79,7 +83,7 @@ async def test_returns_run_from_cache() -> None:
     cache = FakeCachePort()
     cache.store[game_state_cache_key(dungeon.dungeon_id)] = (
         serialize_game_state(dungeon, player),
-        7200,
+        GAME_STATE_TTL_SECONDS,
     )
 
     got_dungeon, got_player = await GetGame(FakeGameRepository(), cache).execute(
@@ -119,7 +123,7 @@ async def test_cache_takes_precedence_over_postgres() -> None:
     cache = FakeCachePort()
     cache.store[game_state_cache_key(cache_dungeon.dungeon_id)] = (
         serialize_game_state(cache_dungeon, cache_player),
-        7200,
+        GAME_STATE_TTL_SECONDS,
     )
 
     got_dungeon, _ = await GetGame(games, cache).execute(cache_dungeon.dungeon_id, owner)
@@ -187,7 +191,7 @@ async def test_ownership_is_enforced_against_cached_state_too() -> None:
     cache = FakeCachePort()
     cache.store[game_state_cache_key(dungeon.dungeon_id)] = (
         serialize_game_state(dungeon, player),
-        7200,
+        GAME_STATE_TTL_SECONDS,
     )
 
     with pytest.raises(NotGameOwnerError):
