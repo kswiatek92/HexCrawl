@@ -118,17 +118,24 @@ this module: `StartGame` seeds it; `ProcessTurn` reads/writes it.
 
 ## API surface (planned)
 
-| Method | Path                        | Description                  |
-|--------|-----------------------------|------------------------------|
-| POST   | /auth/register              | Create account               |
-| POST   | /auth/login                 | Get JWT                      |
-| POST   | /game/start                 | Create new dungeon run       |
-| GET    | /game/{id}                  | Fetch saved game state       |
-| WS     | /ws/game/{session_id}       | Real-time turn processing    |
-| POST   | /game/{id}/abandon          | End run without scoring      |
-| GET    | /leaderboard/global         | All-time top 100             |
-| GET    | /leaderboard/weekly         | This week's top 100          |
-| GET    | /leaderboard/me             | Current user's best scores   |
+| Method | Path                        | Description                  | Owner |
+|--------|-----------------------------|------------------------------|-------|
+| —      | register / sign up          | Create account               | **Frontend** → Supabase SDK |
+| —      | login / refresh             | Get + refresh JWT            | **Frontend** → Supabase SDK |
+| POST   | /game/start                 | Create new dungeon run       | Backend |
+| GET    | /game/{id}                  | Fetch saved game state       | Backend |
+| WS     | /ws/game/{session_id}       | Real-time turn processing    | Backend |
+| POST   | /game/{id}/abandon          | End run without scoring      | Backend |
+| GET    | /leaderboard/global         | All-time top 100             | Backend |
+| GET    | /leaderboard/weekly         | This week's top 100          | Backend |
+| GET    | /leaderboard/me             | Current user's best scores   | Backend |
+
+> **Auth is not a backend route** (task 3.5, [DECISIONS.md ADR-0007](DECISIONS.md)).
+> The backend is a stateless resource server: it only *verifies* Supabase access-token
+> JWTs (`get_current_user`, task 2.10) and never sees credentials or refresh tokens.
+> Sign-up / login / token refresh run on the **frontend** via the Supabase JS SDK
+> (`docs/auth-setup.md`; QUESTIONS.md Phase 2). Each backend `/game` and `/leaderboard/me`
+> route (3.6+) will then `Depends(get_current_user)` on the bearer token the frontend obtained.
 
 ---
 

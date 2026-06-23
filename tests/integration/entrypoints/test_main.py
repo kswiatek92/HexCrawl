@@ -62,6 +62,21 @@ def test_v1_prefix_is_mounted(client: TestClient) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Auth (task 3.5 / DECISIONS.md ADR-0007)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("path", ["/v1/auth/login", "/v1/auth/register"])
+def test_backend_exposes_no_auth_routes(client: TestClient, path: str) -> None:
+    # ADR-0007: the backend is a verify-only resource server — sign-up / login /
+    # refresh are owned by the frontend Supabase SDK, so these routes must NOT
+    # exist. A 404 (no such route) locks the decision in: if someone later adds a
+    # backend login endpoint, this fails and forces a revisit of ADR-0007.
+    response = client.post(path, json={"email": "a@b.com", "password": "pw"})
+    assert response.status_code == 404
+
+
+# ---------------------------------------------------------------------------
 # CORS
 # ---------------------------------------------------------------------------
 

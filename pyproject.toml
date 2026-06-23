@@ -6,10 +6,10 @@ requires-python = ">=3.12"
 dependencies = [
     "alembic>=1.13",
     "asyncpg>=0.29",
-    "fastapi>=0.115",
+    "fastapi>=0.138.0",
     "pydantic>=2.13.4",
-    "pydantic-settings>=2.14.1",
-    "pyjwt[crypto]>=2.9",
+    "pydantic-settings>=2.14.2",
+    "pyjwt[crypto]>=2.13.0",
     "redis>=8.0.0",
     "sqlalchemy[asyncio]>=2.0.51",
     "structlog>=26.1.0",

@@ -54,6 +54,12 @@ A port (the abstract interface the domain/application depends on) should be type
 **Code-review tell:** a port method typed `str`/`dict`/`bytes` where a domain type would do, justified by "the broker/cache needs it that way." The fix is a domain-typed signature with the conversion living in the adapter — not a relaxed port. A raw `UUID` not being JSON-serialisable is the adapter's problem to solve (`str(score_id)`), not the port's to absorb.
 **Reference:** `IScoreRecalcQueue` (`src/domain/ports/score_recalc_queue.py`) keeping `enqueue(score_id: UUID)` while the Celery adapter stringifies; mirrors `IScoreRepository` speaking `Score` not `dict`. Copilot review on PR #60.
 
+### Stateless resource server (verify-only auth boundary)
+An API that holds **no session** and never authenticates credentials itself: an external IdP (Supabase/Auth0/Cognito) issues a signed token, and the API only **verifies** it per request (signature + `exp`/`aud`/`iss`) and reads the principal from a claim. authN lives at the *edge* (who are you? → 401 on a bad token); authZ lives next to the *resource* (is this yours? → 403). The two are separate decisions in separate places.
+**Why it matters:** no credential ever touches your server, so a compromise can't leak passwords or refresh tokens; and with identity in a verifiable token (not server memory) any instance can serve any request — horizontal scaling is free (twelve-factor "stateless processes"). Adding a "convenience" login/proxy route quietly throws both away — the server becomes a credential-interception point.
+**Code-review tell:** a backend `/login` or `/register` that forwards a password to the IdP, stores a refresh token, or holds a server-side session — when the frontend SDK could talk to the IdP directly. Also: an ownership check returning 401 (should be 403) or a bad-token check returning 403 (should be 401) — a sign authN and authZ have been conflated.
+**Reference:** DECISIONS.md ADR-0007 (no backend auth route); `src/entrypoints/http/auth.py` `get_current_user` (verify-only, task 2.10); `docs/auth-setup.md`.
+
 ---
 
 ## 3 — Testing
@@ -74,6 +80,7 @@ A test that asserts "the dependency is down → we raise" must build its client 
 - **Normalisation vs JSONB blob** — tables/FKs = queryable + integrity; JSONB = read-as-blob simplicity but SQL-opaque, no FK/schema.
 - **Robustness principle (adapter input tolerance)** — accept every shape a wrapped client can return (bytes *and* str), but end the liberal-accept in an explicit `else: raise`, never a silent `cast`.
 - **Ports speak domain types; adapters own serialisation** — type a port in domain terms (`UUID`, `Score`), never the wire shape (`str`/`dict`); stringifying/`json.dumps` belongs in the adapter, not a relaxed port signature.
+- **Stateless resource server (verify-only auth)** — API holds no session and never sees credentials; IdP issues a signed token, API only verifies it (401 at the edge) and checks ownership by resource (403). No password leak surface, free horizontal scaling.
 - **Bounded timeouts on connection-failure tests** — a "dependency is down → we raise" test must set a short connect/read timeout, or its latency is at the mercy of the OS connect timeout (RST = instant, DROP = hang/flake).
 
 ---

@@ -12,6 +12,96 @@ Entries are append-only. If a decision is reversed, add a new entry that superse
 
 ---
 
+## 0007 — Backend exposes no login/register route; auth is verify-only
+
+**Date:** 2026-06-23
+**Status:** Accepted
+**Scope:** `src/entrypoints/http/router_auth.py` (kept empty) and the
+`CLAUDE.md` API surface table. Settles what task 3.5 ("Auth endpoints") ships,
+and confirms the boundary `auth.py` (task 2.10) already drew.
+
+### Context
+
+Task 3.5's BOARD row ("Auth endpoints — register + login") and the `CLAUDE.md`
+API surface table (`POST /auth/register`, `POST /auth/login`) read as if the
+backend logs users in. That conflicts with a decision already recorded in
+Phase 2:
+
+- `QUESTIONS.md` line 82: *"Supabase SDK on frontend only. Backend is a stateless
+  resource server that only verifies access-token JWTs and never sees refresh
+  tokens."*
+- `docs/auth-setup.md`: *"The backend never logs users in, never holds a session,
+  and never sees a refresh token."*
+- `src/entrypoints/http/auth.py` (task 2.10) is built entirely as verify-only:
+  it fetches Supabase's JWKS, verifies signature + `exp`/`aud`/`iss`, and yields
+  an `AuthenticatedUser` — there is no credential-handling path.
+
+The `QUIZZES.md` 3.5 design intent leaned the other way (Q3 said "wrong-password
+login returns 401"), which only makes sense if the backend owns a login route.
+Two sources of truth disagreed; this ADR picks one.
+
+### Decision
+
+**The backend exposes no `/auth/register` or `/auth/login` route.** Sign-up,
+login, and token refresh are owned by the **frontend** via the Supabase JS SDK,
+which holds the credentials and the refresh token. The backend stays a
+stateless resource server: each protected route (3.6+) will `Depends(get_current_user)`,
+which *verifies* the access-token JWT the frontend obtained (task 2.10) and
+reads `sub` as the principal. The backend never sees a password or a refresh
+token.
+
+Concretely, task 3.5 ships **no new endpoint code**:
+- `router_auth.py` stays mounted but empty — a discoverable placeholder whose
+  docstring records this decision.
+- The `CLAUDE.md` API table marks the two auth rows as **Frontend → Supabase
+  SDK**, not backend routes.
+- `QUIZZES.md` 3.5 Q3 is reframed: the `401` the backend returns is for a
+  missing/invalid/expired *token* (authN at the edge), not a wrong password.
+
+### Alternatives considered
+
+- **Backend proxies to Supabase GoTrue** (`POST /auth/v1/signup`,
+  `token?grant_type=password` with the anon key, forwarding the token response
+  to the client). Matches the literal API table and the original quiz wording.
+  Rejected: the backend would then receive the user's password and the refresh
+  token in transit, directly contradicting the stateless-resource-server stance
+  (`docs/auth-setup.md`, QUESTIONS.md line 82). It enlarges the blast radius of
+  a backend compromise (now a credential-interception point) and duplicates a
+  flow the Supabase SDK already does well on the frontend — for no gain in a
+  single-page app where the SDK runs in the browser anyway.
+- **Reconcile by proxying login but keeping refresh on the frontend.** Rejected:
+  still means the backend sees the password and the initial refresh token, so it
+  carries the same "never sees a refresh token" violation with extra ambiguity
+  about which half lives where.
+
+### Consequences
+
+**Gains:**
+- The verify-only boundary from task 2.10 holds end-to-end — one auth model, no
+  credential handling on the server, smaller attack surface.
+- Task 3.5 ships as docs + one guard test instead of a credential-forwarding
+  endpoint; less code to secure and maintain.
+- Horizontal scaling stays trivial: no server-side session, identity rides in a
+  verifiable token (twelve-factor stateless processes).
+
+**Costs:**
+- The frontend (Phase 5, tasks 5.11/5.12) must implement the full Supabase auth
+  flow itself — there is no backend convenience endpoint to lean on.
+- The `CLAUDE.md` API table now documents two rows the backend does **not**
+  serve; they are kept (marked frontend-owned) so "where does auth happen" stays
+  answerable, at the cost of a table that isn't purely backend routes.
+- A future need for a server-side auth action (e.g. admin user provisioning with
+  the service-role key) would supersede this ADR rather than extend it.
+
+### References
+
+- [router_auth.py](src/entrypoints/http/router_auth.py) — empty router, decision in the docstring.
+- [auth.py](src/entrypoints/http/auth.py) — the verify-only dependency (task 2.10) this confirms.
+- [docs/auth-setup.md](docs/auth-setup.md) — the stateless-resource-server runbook.
+- [QUESTIONS.md Phase 2 line 82](QUESTIONS.md) — "Supabase SDK on frontend only" (this ADR upholds it for Phase 3).
+
+---
+
 ## 0006 — Game repository persists the `(Dungeon, Player)` pair
 
 **Date:** 2026-06-12
