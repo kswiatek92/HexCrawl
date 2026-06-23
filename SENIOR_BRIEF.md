@@ -60,6 +60,12 @@ An API that holds **no session** and never authenticates credentials itself: an 
 **Code-review tell:** a backend `/login` or `/register` that forwards a password to the IdP, stores a refresh token, or holds a server-side session — when the frontend SDK could talk to the IdP directly. Also: an ownership check returning 401 (should be 403) or a bad-token check returning 403 (should be 401) — a sign authN and authZ have been conflated.
 **Reference:** DECISIONS.md ADR-0007 (no backend auth route); `src/entrypoints/http/auth.py` `get_current_user` (verify-only, task 2.10); `docs/auth-setup.md`.
 
+### 403 vs 404 as an information-leak trade-off
+Returning **403 Forbidden** for a resource that exists but isn't yours *confirms it exists* to a non-owner; returning **404 Not Found** for both "doesn't exist" and "not yours" leaks nothing about which ids are valid. The choice is a deliberate honesty-vs-confidentiality trade-off, not a default — distinct from 401-vs-403 (which is authN-vs-authZ).
+**Why it matters:** 403 on enumerable/guessable ids (sequential ints, emails, usernames) hands an attacker an *existence oracle* — they map which records exist without ever having access. 404-for-both closes that oracle at the cost of muddier semantics (a genuine permission error is indistinguishable from a typo). Rule of thumb: 403 is safe when ids are unguessable (UUIDv4) and existence is low-value; prefer 404-for-both when ids are enumerable or the existence fact is itself sensitive.
+**Code-review tell:** an ownership check returning 403 on a resource keyed by a sequential/guessable id, or any endpoint where "exists but forbidden" and "doesn't exist" are externally distinguishable on enumerable ids. The choice deserves a one-line comment recording *why*, since it's non-obvious and security-relevant.
+**Reference:** HexCrawl `GET /game/{id}` (task 3.7) → 403 for a foreign run, justified because dungeon ids are UUIDv4 (unguessable); `src/application/get_game.py` `NotGameOwnerError`. OWASP API3:2023 (Broken Object Level Authorization).
+
 ---
 
 ## 3 — Testing
@@ -81,6 +87,7 @@ A test that asserts "the dependency is down → we raise" must build its client 
 - **Robustness principle (adapter input tolerance)** — accept every shape a wrapped client can return (bytes *and* str), but end the liberal-accept in an explicit `else: raise`, never a silent `cast`.
 - **Ports speak domain types; adapters own serialisation** — type a port in domain terms (`UUID`, `Score`), never the wire shape (`str`/`dict`); stringifying/`json.dumps` belongs in the adapter, not a relaxed port signature.
 - **Stateless resource server (verify-only auth)** — API holds no session and never sees credentials; IdP issues a signed token, API only verifies it (401 at the edge) and checks ownership by resource (403). No password leak surface, free horizontal scaling.
+- **403 vs 404 info-leak trade-off** — 403 "exists but not yours" confirms existence; 404-for-both hides it. Safe to use 403 with unguessable (UUIDv4) ids; prefer 404-for-both when ids are enumerable or existence is sensitive.
 - **Bounded timeouts on connection-failure tests** — a "dependency is down → we raise" test must set a short connect/read timeout, or its latency is at the mercy of the OS connect timeout (RST = instant, DROP = hang/flake).
 
 ---
