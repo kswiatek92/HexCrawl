@@ -53,11 +53,12 @@ def test_unknown_route_returns_404(client: TestClient) -> None:
 
 
 def test_v1_prefix_is_mounted(client: TestClient) -> None:
-    # Stub routers are mounted; no endpoints yet → 404, but not from a missing
-    # router — the 404 detail differs from a totally unknown path because FastAPI
-    # returns its standard {"detail": "Not Found"} for both, so we just confirm
-    # the prefix is reachable (i.e., doesn't 307 to somewhere else or 500).
-    response = client.get("/v1/game/nonexistent")
+    # Probe a path under /v1 that matches no router route, so this stays a pure
+    # routing 404 (the prefix is reachable, doesn't 307 elsewhere or 500). We
+    # deliberately avoid /v1/game/{id}: that now resolves the real GET route
+    # (task 3.7), which would build the real auth verifier and need SUPABASE_URL
+    # in this no-override smoke app — covered instead by test_game_get.py.
+    response = client.get("/v1/nonexistent")
     assert response.status_code == 404
 
 
