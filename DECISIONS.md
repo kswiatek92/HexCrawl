@@ -12,6 +12,103 @@ Entries are append-only. If a decision is reversed, add a new entry that superse
 
 ---
 
+## 0008 — Run termination is modelled implicitly; abandon checkpoints then refreshes cache
+
+**Date:** 2026-06-23
+**Status:** Accepted
+**Scope:** `src/application/abandon_game.py` (the `AbandonGame` use case) and the
+`POST /game/{id}/abandon` route (task 3.8). Records two coupled calls: *where*
+"this run is over" lives (nowhere durable, by design) and *how* abandon writes
+the two stores. Also names a gap the WS turn loop (task 3.9) will have to face.
+
+### Context
+
+Task 3.8 ends a run "without scoring". Building it surfaced that the codebase
+has **no run-lifecycle field anywhere** — neither the domain `Dungeon` nor the
+`DungeonRow` ORM model carries an `is_over` / `status` / `ended_at`. Player
+*death* is the same: a dead player is just `hp == 0`; nothing marks the run
+terminated. Termination is implicit throughout v1.
+
+Two further constraints shaped the implementation:
+
+- **`ICachePort` has no `delete`** (deliberate — see `cache_port.py`; eviction is
+  by the 2h TTL). So "abandon" cannot evict the active cache entry.
+- **`SubmitScore` (the `abandoned`-flag owner) cannot be wired into HTTP yet** —
+  it needs the `IScoreRecalcQueue` adapter, which is Phase 4. And an abandoned
+  run scores nothing anyway, so routing abandon through `SubmitScore` would be
+  both impossible now and pointless.
+
+### Decision
+
+1. **Abandon flows through the domain, not a bespoke path.** `AbandonGame` loads
+   the run (cache-first, Postgres-fallback), authorises ownership, then calls the
+   pure `process_turn(dungeon, player, Abandon())` — which emits `RunAbandoned`,
+   sets `game_over`, and increments `turn_count`. The `TurnResult` is discarded:
+   there is no score path to feed it.
+2. **No score, no recalc.** `AbandonGame` takes only the game repo + cache ports —
+   never `IScoreRepository` / `IScoreRecalcQueue`. An abandoned run earns no
+   leaderboard entry (QUESTIONS.md task 3.3: "abandoned → no score").
+3. **Persist durable-store-first, then refresh the cache.** Abandon is a game-over
+   turn, so the terminal state is checkpointed to Postgres (`games.save`), *then*
+   the Redis working copy is rewritten — same ordering as `ProcessTurn`'s
+   game-over branch. The cache refresh exists so a later cache-first `GET` returns
+   the post-abandon state rather than the stale pre-abandon copy (there is no
+   `delete` to evict it).
+4. **No terminal-status field is added.** v1 keeps modelling termination
+   implicitly; abandon's only durable footprint is the checkpointed final state
+   (`turn_count` bumped, `RunAbandoned` having run).
+
+### Alternatives considered
+
+- **Add an `is_over` / `ended_at` status field to `Dungeon` + `DungeonRow`
+  (+ migration).** The "correct" long-term shape: `GET` could reflect a terminal
+  run, the WS loop could refuse turns on it, double-abandon would be detectable.
+  Rejected for 3.8 as scope creep and *inconsistent* — player death has no such
+  marker either, so introducing one for abandon alone would be a half-measure.
+  Deferred to whenever termination semantics are tackled uniformly (likely 3.9).
+- **Hard-delete the run (cache + Postgres).** Rejected: needs an
+  `IGameRepository.delete` and a cache delete, the latter contradicting the
+  deliberate no-`delete` cache design. Also destroys state a post-mortem / replay
+  might want.
+- **Acknowledge-only (authZ then 204, no state change).** Rejected: a near no-op
+  that doesn't even run the domain's own `Abandon` action — the endpoint would
+  assert nothing happened.
+- **Skip the cache refresh, let the entry TTL out.** Rejected: leaves Postgres
+  (post-abandon) and the cache (pre-abandon) divergent, and since reads are
+  cache-first a follow-up `GET` would serve the stale copy until the 2h TTL.
+
+### Consequences
+
+**Gains:**
+- Abandon reuses the audited domain turn path and the established
+  durable-first-then-cache write ordering; no new persistence concepts.
+- No coupling to the Phase 4 score/recalc machinery — `AbandonGame` is testable
+  today against two simple fakes.
+- Postgres and Redis agree on the run's final state immediately after abandon.
+
+**Costs:**
+- **A run's "over" state is not observable.** A `GET /game/{id}` after abandon (or
+  after death) still returns the run as if live — there is no terminal flag to
+  surface. Abandon's only durable trace is `turn_count + 1` and the (transient)
+  `RunAbandoned` event.
+- **The WS turn loop (3.9) must decide what "the run is over" means** with no
+  persisted flag to lean on — it will likely either add the status field this ADR
+  deferred, or treat game-over as a per-connection in-memory fact and close the
+  socket. Flagged there.
+- Double-abandon is a silent no-op-ish repeat (loads, runs `Abandon` again,
+  re-checkpoints) rather than a detectable `409` — acceptable while there's no
+  status to conflict on.
+
+### References
+
+- [abandon_game.py](src/application/abandon_game.py) — the use case (load → authZ → domain `Abandon` → PG checkpoint → cache refresh).
+- [router_game.py](src/entrypoints/http/router_game.py) — `POST /{game_id}/abandon`, 200 + final state, 403/404 mirroring `GET /{id}`.
+- [ADR-0006](#0006--game-repository-persists-the-dungeon-player-pair) — the `save(dungeon, player)` checkpoint this reuses.
+- [QUESTIONS.md task 3.3](QUESTIONS.md) — "abandoned → no score".
+- [game_service.py](src/domain/services/game_service.py) — `Abandon` → `RunAbandoned` + `game_over`.
+
+---
+
 ## 0007 — Backend exposes no login/register route; auth is verify-only
 
 **Date:** 2026-06-23
