@@ -118,7 +118,7 @@ Weeks/dates below are **remaining work projected from 2026-06-08** at 10 h/week.
 | 3.4 | FastAPI app setup | ✅ | ⬜ | K | lifespan, CORS, routers |
 | 3.5 | Auth endpoints | ✅ | ⬜ | K | Frontend-only auth (Supabase SDK); backend verify-only, no routes — ADR-0007 |
 | 3.6 | `POST /game/start` | ✅ | ⬜ | K | 201 + Location + full game state; auth via get_current_user; GameStateResponse shared with 3.7 |
-| 3.7 | `GET /game/{id}` | 🔲 | ⬜ | K | |
+| 3.7 | `GET /game/{id}` | 🔄 | ⬜ | K | |
 | 3.8 | `POST /game/{id}/abandon` | 🔲 | ⬜ | K | |
 | 3.9 | `WS /ws/game/{session_id}` | 🔲 | ⬜ | K | Full turn loop |
 | 3.10 | `GET /leaderboard/global` | 🔲 | ⬜ | K | Served from Redis cache |
