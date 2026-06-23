@@ -155,9 +155,7 @@ def test_start_returns_201_with_location_and_full_state(
     assert "damage_taken" not in body["player"]
 
 
-def test_identity_comes_from_token_not_body(
-    repo: FakeGameRepository, cache: FakeCachePort
-) -> None:
+def test_identity_comes_from_token_not_body(repo: FakeGameRepository, cache: FakeCachePort) -> None:
     token_user = uuid4()
     body_user = uuid4()
     app = _make_app(repo, cache, principal=AuthenticatedUser(user_id=token_user))
@@ -176,9 +174,7 @@ def test_identity_comes_from_token_not_body(
     assert saved_player.user_id != body_user
 
 
-def test_explicit_seed_is_reproducible(
-    repo: FakeGameRepository, cache: FakeCachePort
-) -> None:
+def test_explicit_seed_is_reproducible(repo: FakeGameRepository, cache: FakeCachePort) -> None:
     app = _make_app(repo, cache, principal=AuthenticatedUser(user_id=uuid4()))
     client = TestClient(app)
 
@@ -192,9 +188,7 @@ def test_explicit_seed_is_reproducible(
 # --- Auth ------------------------------------------------------------------
 
 
-def test_unauthenticated_request_is_401(
-    repo: FakeGameRepository, cache: FakeCachePort
-) -> None:
+def test_unauthenticated_request_is_401(repo: FakeGameRepository, cache: FakeCachePort) -> None:
     app = _make_app(repo, cache, principal=None)
     client = TestClient(app)
 
@@ -209,9 +203,7 @@ def test_unauthenticated_request_is_401(
 # --- Validation ------------------------------------------------------------
 
 
-def test_out_of_range_seed_is_422(
-    repo: FakeGameRepository, cache: FakeCachePort
-) -> None:
+def test_out_of_range_seed_is_422(repo: FakeGameRepository, cache: FakeCachePort) -> None:
     app = _make_app(repo, cache, principal=AuthenticatedUser(user_id=uuid4()))
     client = TestClient(app)
 
@@ -224,9 +216,7 @@ def test_out_of_range_seed_is_422(
     assert repo.saved == {}
 
 
-def test_empty_player_name_is_422(
-    repo: FakeGameRepository, cache: FakeCachePort
-) -> None:
+def test_empty_player_name_is_422(repo: FakeGameRepository, cache: FakeCachePort) -> None:
     app = _make_app(repo, cache, principal=AuthenticatedUser(user_id=uuid4()))
     client = TestClient(app)
 

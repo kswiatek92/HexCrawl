@@ -59,11 +59,15 @@ def get_redis(request: Request) -> Redis:
 #
 # The chain below assembles the application use case from its adapters, one
 # ``Depends`` layer per port: the request-scoped session/Redis (above) build the
-# concrete repo/cache, which build the use case. This is the seam where the
-# entrypoint chooses *which* adapter implements each domain port — the use case
-# only ever sees the ``IGameRepository`` / ``ICachePort`` Protocols. Tests
-# override ``get_start_game`` directly with a use case wired to fakes, so no DB
-# or Redis is touched. Tasks 3.7/3.8 follow this pattern for their own use cases.
+# concrete repo/cache, which build the use case. This is the **composition
+# root** — the one place that deliberately names concrete adapters
+# (``PostgresGameRepository`` / ``RedisCache``), so these providers are typed
+# against the concrete types on purpose. The decoupling lives one level in:
+# ``StartGame``'s constructor is typed against the ``IGameRepository`` /
+# ``ICachePort`` Protocols, so swapping an adapter is a one-line change *here*
+# and nowhere else. Tests override ``get_start_game`` directly with a use case
+# wired to fakes, so no DB or Redis is touched. Tasks 3.7/3.8 follow this
+# pattern for their own use cases.
 
 
 def get_game_repository(
