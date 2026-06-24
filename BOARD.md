@@ -30,7 +30,7 @@ Assignees: `K` = Krzysztof · `?` = unassigned / open for collaborator
 Vibe coding with AI assistance. Estimates include quiz time and ~20% debugging buffer.
 Total: **77 tasks across 6 phases, ~84 sessions, ~17 weeks (~4 months) end-to-end.**
 
-Anchored forward from **2026-06-08**. As of **2026-06-24**: **43/77 tasks done** (Phases 1 & 2 complete; Phase 3 at 10/15; three CI tasks done early in Phase 6). Remaining: **34 tasks**, ~**9–10 weeks (~2 months)** → target completion **late August–early September 2026**. Phases 1 & 2 closed ahead of estimate, and Phase 3 is tracking ahead too.
+Anchored forward from **2026-06-08**. As of **2026-06-24**: **48/77 tasks done** (Phases 1–3 complete; three CI tasks done early in Phase 6). Remaining: **29 tasks**, ~**8 weeks (~2 months)** → target completion **late August–early September 2026**. Phases 1–3 all closed ahead of estimate — the M3 backend-MVP milestone landed ~2–3 weeks early. (Note: the prior count of "43/77, Phase 3 at 10/15" undercounted Phase 3 by one — the table had 11 done at 3.11; corrected here.)
 
 > ⚠️ Task counts and "done" figures are real (counted from the tables below). The **Sessions / Weeks / Target** columns are estimates, not commitments — adjust as real velocity lands.
 
@@ -44,7 +44,7 @@ Weeks/dates below are **remaining work projected from 2026-06-08** at 10 h/week.
 |-----------|-------|--------------------|-----------------|--------------|-------------|
 | M1 — Domain core | Phase 1 | 19/19 ✅ | — | — | **done** |
 | M2 — Data persists | Phase 2 | 11/11 ✅ | — | — | **done** |
-| M3 — Playable via API + WS | Phase 3 | 10/15 | ~6 | ~1.5 | early-to-mid July 2026 |
+| M3 — Playable via API + WS | Phase 3 | 15/15 ✅ | — | — | **done** |
 | **M3 = backend MVP** | | | | | **Turn loop over HTTP/WS, scores persist** |
 | M4 — Async workers live | Phase 4 | 0/7 | ~9 | ~2 | mid-to-late July 2026 |
 | M5 — Browser game playable | Phase 5 | 0/12 | ~14 | ~3 | mid-August 2026 |
@@ -123,10 +123,10 @@ Weeks/dates below are **remaining work projected from 2026-06-08** at 10 h/week.
 | 3.9 | `WS /ws/game/{session_id}` | ✅ | ⬜ | K | Full turn loop: first-message auth → GetGame authZ → per-turn UoW over ProcessTurn → state+events frames; resilient loop, 1008/1000/1011 closes |
 | 3.10 | `GET /leaderboard/global` | ✅ | ⬜ | K | Served from Redis cache |
 | 3.11 | `GET /leaderboard/weekly` | ✅ | ⬜ | K | Mirror of 3.10 with `LeaderboardPeriod.WEEKLY`; weekly window in `top_n`, distinct cache key `leaderboard:WEEKLY`; public, no auth |
-| 3.12 | `GET /leaderboard/me` | 🔲 | ⬜ | K | Requires auth |
-| 3.13 | Pydantic v2 request/response schemas | 🔲 | ⬜ | K | |
-| 3.14 | Integration tests — HTTP endpoints | 🔲 | ⬜ | K | |
-| 3.15 | WebSocket test | 🔲 | ⬜ | K | pytest-asyncio |
+| 3.12 | `GET /leaderboard/me` | ✅ | ⬜ | K | Authed per-user board; `GetMyScores` (uncached → reads PG via `top_n_for_user` + `rank_of`); `MyScoresResponse` (global/weekly rank + paginated entries); 401 unauth |
+| 3.13 | Pydantic v2 request/response schemas | ✅ | ⬜ | K | Schemas shipped incrementally (3.6/3.10); 3.13 = RFC 7807 Problem Details retrofit — `application/problem+json` via app-wide `HTTPException`/`RequestValidationError` handlers, `WWW-Authenticate` preserved |
+| 3.14 | Integration tests — HTTP endpoints | ✅ | ⬜ | K | All HTTP endpoints covered via `TestClient` + fakes: start/get/abandon/global/weekly/me/problem-details |
+| 3.15 | WebSocket test | ✅ | ⬜ | K | Turn loop covered by `test_game_ws.py` (auth handshake / authz / resilience / game-over / 1008·1000·1011 closes) |
 | 📝 | **Phase 3 quiz** | — | ⬜ | K | Must pass before Phase 4 |
 
 ---
