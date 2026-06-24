@@ -38,6 +38,12 @@ How to pre-load a relationship in one shot. **joined** = single `LEFT JOIN` — 
 **Code-review tell:** a JSONB column you keep reaching into (`WHERE data->>'x' = ...` everywhere → should be a column), or a many-row child table for data only ever read as one unit (→ should be a blob).
 **Reference:** checklist §4 Databases → "Modeling"; *The Art of PostgreSQL* (JSONB).
 
+### Read-after-write cache coherence (durable-first write ordering)
+When a write touches both a durable store and a cache fronting it, the **durable store goes first, then the cache is refreshed (or invalidated)** — and the refresh isn't optional housekeeping, it's what stops a cache-first read from serving the pre-write copy. Skipping it leaves the two stores divergent until the cache's TTL expires.
+**Why it matters:** if reads are cache-first and the cache isn't updated after a write, a follow-up read returns stale data for the whole TTL window — a silent correctness bug, not a perf one. Durable-first ordering also means a crash between the two writes loses only a rebuildable cache refresh, never the authoritative write.
+**Code-review tell:** a handler that persists to the DB and returns, but never updates/invalidates the cache it later reads from — especially when there's no `delete` on the cache and eviction is "left to TTL". Also the inverse: cache written before the durable store, so a crash leaves the cache asserting a write that didn't survive.
+**Reference:** HexCrawl `AbandonGame` (task 3.8) — Postgres checkpoint *then* `cache.set`, mirroring `ProcessTurn`'s game-over branch; DECISIONS.md ADR-0008.
+
 ---
 
 ## 2 — Boundaries & Interfaces
@@ -84,6 +90,7 @@ A test that asserts "the dependency is down → we raise" must build its client 
 - **Eager-loading strategies** — selectin (`IN` query; default for collections) vs joined (one JOIN, duplicates parents, breaks LIMIT) vs subquery.
 - **Identity Map / Unit of Work** — session caches one object per PK; tracks mutations and flushes them as one ordered batch on commit.
 - **Normalisation vs JSONB blob** — tables/FKs = queryable + integrity; JSONB = read-as-blob simplicity but SQL-opaque, no FK/schema.
+- **Read-after-write cache coherence** — write durable store first, then refresh/invalidate the cache; skipping the refresh serves stale data on cache-first reads until TTL. Durable-first ordering means a mid-write crash loses only a rebuildable cache refresh.
 - **Robustness principle (adapter input tolerance)** — accept every shape a wrapped client can return (bytes *and* str), but end the liberal-accept in an explicit `else: raise`, never a silent `cast`.
 - **Ports speak domain types; adapters own serialisation** — type a port in domain terms (`UUID`, `Score`), never the wire shape (`str`/`dict`); stringifying/`json.dumps` belongs in the adapter, not a relaxed port signature.
 - **Stateless resource server (verify-only auth)** — API holds no session and never sees credentials; IdP issues a signed token, API only verifies it (401 at the edge) and checks ownership by resource (403). No password leak surface, free horizontal scaling.
