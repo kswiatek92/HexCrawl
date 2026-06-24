@@ -30,7 +30,7 @@ Assignees: `K` = Krzysztof · `?` = unassigned / open for collaborator
 Vibe coding with AI assistance. Estimates include quiz time and ~20% debugging buffer.
 Total: **77 tasks across 6 phases, ~84 sessions, ~17 weeks (~4 months) end-to-end.**
 
-Anchored forward from **2026-06-08**. As of **2026-06-19**: **35/77 tasks done** (Phases 1 & 2 complete; Phase 3 at 2/15; three CI tasks done early in Phase 6). Remaining: **42 tasks**, ~**11 weeks (~2.5 months)** → target completion **late August–mid-September 2026**. Phase 2 closed ahead of its late-June estimate.
+Anchored forward from **2026-06-08**. As of **2026-06-24**: **43/77 tasks done** (Phases 1 & 2 complete; Phase 3 at 10/15; three CI tasks done early in Phase 6). Remaining: **34 tasks**, ~**9–10 weeks (~2 months)** → target completion **late August–early September 2026**. Phases 1 & 2 closed ahead of estimate, and Phase 3 is tracking ahead too.
 
 > ⚠️ Task counts and "done" figures are real (counted from the tables below). The **Sessions / Weeks / Target** columns are estimates, not commitments — adjust as real velocity lands.
 
@@ -44,18 +44,18 @@ Weeks/dates below are **remaining work projected from 2026-06-08** at 10 h/week.
 |-----------|-------|--------------------|-----------------|--------------|-------------|
 | M1 — Domain core | Phase 1 | 19/19 ✅ | — | — | **done** |
 | M2 — Data persists | Phase 2 | 11/11 ✅ | — | — | **done** |
-| M3 — Playable via API + WS | Phase 3 | 2/15 | ~15 | ~3 | mid-to-late July 2026 |
+| M3 — Playable via API + WS | Phase 3 | 10/15 | ~6 | ~1.5 | early-to-mid July 2026 |
 | **M3 = backend MVP** | | | | | **Turn loop over HTTP/WS, scores persist** |
-| M4 — Async workers live | Phase 4 | 0/7 | ~9 | ~2 | early August 2026 |
-| M5 — Browser game playable | Phase 5 | 0/12 | ~14 | ~3 | late August 2026 |
+| M4 — Async workers live | Phase 4 | 0/7 | ~9 | ~2 | mid-to-late July 2026 |
+| M5 — Browser game playable | Phase 5 | 0/12 | ~14 | ~3 | mid-August 2026 |
 | **M5 = playable game** | | | | | **End-to-end in the browser (local)** |
-| M6 — Deployed to AWS | Phase 6 | 3/13 | ~14 | ~3 | mid-September 2026 |
+| M6 — Deployed to AWS | Phase 6 | 3/13 | ~14 | ~3 | late August–early September 2026 |
 | **M6 = v1 release** | | | | | **Live on AWS ECS Fargate, HTTPS** |
 
 **Key milestones:**
-- **M3 (mid-late July)** — backend MVP. Full turn loop over HTTP + WebSocket, scores persisted, leaderboard served. No frontend yet.
-- **M5 (late August)** — playable game. React canvas client wired to the WS turn loop; end-to-end in the browser against local infra.
-- **M6 (mid-September)** — v1 release. Dockerised, deployed to AWS ECS Fargate behind an ALB with HTTPS.
+- **M3 (early-to-mid July)** — backend MVP. Full turn loop over HTTP + WebSocket, scores persisted, leaderboard served. No frontend yet.
+- **M5 (mid-August)** — playable game. React canvas client wired to the WS turn loop; end-to-end in the browser against local infra.
+- **M6 (late Aug–early Sept)** — v1 release. Dockerised, deployed to AWS ECS Fargate behind an ALB with HTTPS.
 
 ---
 
@@ -222,4 +222,4 @@ _(move tasks here as they complete)_
 
 ---
 
-*Last updated: 2026-06-19 — Krzysztof*
+*Last updated: 2026-06-24 — Krzysztof*
