@@ -33,6 +33,7 @@ from src.application.abandon_game import AbandonGame
 from src.application.game_state import deserialize_game_state, game_state_cache_key
 from src.application.get_game import GetGame
 from src.application.get_leaderboard import GetLeaderboard
+from src.application.get_my_scores import GetMyScores
 from src.application.process_turn import ProcessTurn
 from src.application.start_game import StartGame
 from src.config import Settings
@@ -138,6 +139,17 @@ def get_leaderboard(
 ) -> GetLeaderboard:
     """Assemble the ``GetLeaderboard`` cache-aside read use case from its ports."""
     return GetLeaderboard(scores, cache)
+
+
+def get_my_scores(
+    scores: Annotated[PostgresScoreRepository, Depends(get_score_repository)],
+) -> GetMyScores:
+    """Assemble the ``GetMyScores`` per-user read use case from its score port.
+
+    No cache port: the personal board is per-user (unlike the shared top-100
+    global/weekly slices), so it reads straight through to Postgres.
+    """
+    return GetMyScores(scores)
 
 
 # --- WebSocket turn loop: per-turn Unit of Work ---------------------------

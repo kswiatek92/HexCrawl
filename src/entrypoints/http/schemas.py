@@ -258,3 +258,50 @@ class LeaderboardResponse(BaseModel):
                 for i, score in enumerate(page)
             ],
         )
+
+
+class MyScoresResponse(BaseModel):
+    """The caller's personal-best history plus their public-board standings.
+
+    Returned by ``GET /leaderboard/me`` (task 3.12), the authenticated, per-user
+    board. Distinct from :class:`LeaderboardResponse` because the shapes differ:
+    a public board is one period's ranked slice, whereas "me" is the user's own
+    runs (period-agnostic) *plus* where their single best run sits on each public
+    board. ``global_rank`` / ``weekly_rank`` are ``null`` when the user is
+    unranked in that window (no qualifying score). ``entries`` numbers the user's
+    runs by their own position (rank 1 = the user's best run), absolute over the
+    requested page — not the user's position on the public board, which is what
+    the two ``*_rank`` fields carry.
+    """
+
+    global_rank: int | None
+    weekly_rank: int | None
+    entries: list[LeaderboardEntry]
+
+    @classmethod
+    def from_my_scores(
+        cls,
+        scores: list[Score],
+        *,
+        global_rank: int | None,
+        weekly_rank: int | None,
+        offset: int,
+        limit: int,
+    ) -> "MyScoresResponse":
+        """Build a page from the user's ranked ``scores`` list and their ranks.
+
+        Mirrors :meth:`LeaderboardResponse.from_scores`: slices
+        ``scores[offset : offset + limit]`` and numbers each entry by its
+        absolute position in the user's own history (``offset + i + 1``). The
+        board standings (``global_rank`` / ``weekly_rank``) are pagination-
+        independent — they describe the user's single best run, not this page.
+        """
+        page = scores[offset : offset + limit]
+        return cls(
+            global_rank=global_rank,
+            weekly_rank=weekly_rank,
+            entries=[
+                LeaderboardEntry.from_domain(score, rank=offset + i + 1)
+                for i, score in enumerate(page)
+            ],
+        )

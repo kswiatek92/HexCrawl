@@ -160,6 +160,7 @@ and must be JSON-serialisable, not pickled.
 - **Python 3.12+** — use `match` statements for action dispatching, `TypeAlias` for clarity.
 - **Type hints everywhere.** No `Any` in domain or application layers.
 - **Pydantic v2** for all API schemas. Domain models are plain dataclasses.
+- **HTTP errors** use RFC 7807 Problem Details (`application/problem+json` with `type`/`title`/`status`/`detail`/`instance`), rendered app-wide by the handlers in `entrypoints/http/problem_details.py` (installed in `create_app`). Routes just `raise HTTPException`; the handler maps it — no per-route error shaping. Validation 422s carry the per-field breakdown in an `errors` extension member.
 - **ORM models** (SQLAlchemy) inherit the declarative `Base` in `src/adapters/db/base.py`, which carries the Alembic naming convention; they live in `adapters/db/`, never in `domain/`. Alembic `env.py` sources the DB URL from `Settings`. Keep the migration history to a single head.
 - **DB repositories** take a constructor-injected `AsyncSession`, never create the engine/sessionmaker themselves, and **do not commit** — they `merge`/`flush` and leave the transaction boundary (the Unit of Work) to the calling use case. Domain↔ORM translation lives in pure mapper functions in the adapter, never across the port (the port speaks domain dataclasses only). See `adapters/db/game_repository.py` and DECISIONS.md ADR-0006.
 - **Tests first for domain and application layers.** Use `pytest` + `pytest-asyncio`.

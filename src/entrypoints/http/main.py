@@ -31,6 +31,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from src.adapters.cache.redis_cache import create_redis_client
 from src.config import Settings
 from src.entrypoints.http import router_auth, router_game, router_leaderboard
+from src.entrypoints.http.problem_details import install_problem_handlers
 from src.entrypoints.ws import router_game as ws_router_game
 
 logger = structlog.get_logger(__name__)
@@ -102,6 +103,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # Pre-populate state so lifespan and dependencies can read settings without
     # a second instantiation.
     application.state.settings = resolved
+
+    # RFC 7807 Problem Details (task 3.13): every HTTP error — explicit
+    # HTTPException or an automatic 422 — leaves as application/problem+json.
+    install_problem_handlers(application)
 
     # CORS added last → runs outermost (LIFO) → preflight resolved before auth.
     application.add_middleware(
