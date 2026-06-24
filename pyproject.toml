@@ -6,6 +6,7 @@ requires-python = ">=3.12"
 dependencies = [
     "alembic>=1.13",
     "asyncpg>=0.29",
+    "celery>=5.4",
     "fastapi>=0.138.0",
     "pydantic>=2.13.4",
     "pydantic-settings>=2.14.2",
@@ -50,6 +51,12 @@ plugins = ["pydantic.mypy"]
 [[tool.mypy.overrides]]
 module = ["src.domain.*", "src.application.*"]
 disallow_any_explicit = true
+
+# Celery ships no py.typed marker / stubs, so strict mode can't resolve it.
+# Scoped to the celery package only — the rest of src stays fully type-checked.
+[[tool.mypy.overrides]]
+module = ["celery.*"]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
