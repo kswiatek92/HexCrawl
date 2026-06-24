@@ -149,9 +149,18 @@ this module: `StartGame` seeds it; `ProcessTurn` reads/writes it.
 
 The application layer never imports Celery. `SubmitScore` enqueues `score_recalc`
 through the `IScoreRecalcQueue` port (`domain/ports/score_recalc_queue.py`); the
-concrete Celery producer in `adapters/tasks/` lands in Phase 4 (task 4.2/4.7). The
-port carries a `score_id`, never a domain object — task args cross a process boundary
-and must be JSON-serialisable, not pickled.
+concrete Celery producer (`CeleryScoreRecalcQueue`) and the task itself live in
+`adapters/tasks/score_recalc.py` (task 4.2). The port carries a `score_id`, never a
+domain object — task args cross a process boundary and must be JSON-serialisable,
+not pickled.
+
+Each task is a thin **adapter** over an application use case: the rebuild logic is
+`RebuildLeaderboard` (application layer, ports only); the task wires the concrete
+repo/cache and bridges Celery's sync worker to the async data layer with
+`asyncio.run`, building and disposing a per-run engine + Redis client. Every task
+module must register itself in `celery_app`'s `Celery(..., include=[...])` list —
+the worker boots from `celery_app` alone and won't import (so won't register) task
+modules otherwise.
 
 ---
 
