@@ -20,7 +20,7 @@ from jwt import InvalidTokenError
 
 from src.application.game_state import deserialize_game_state, game_state_cache_key
 from src.application.get_game import GetGame
-from src.application.process_turn import ProcessTurn
+from src.application.process_turn import GameNotFoundError, ProcessTurn
 from src.config import Settings
 from src.domain.models import Action, Dungeon, Floor, Player, TileType
 from src.domain.services import TurnResult
@@ -108,14 +108,34 @@ def _make_app(
     cache: FakeCachePort,
     *,
     principal: AuthenticatedUser,
+    runner: object | None = None,
 ) -> FastAPI:
     """Build an app whose WS runner uses ``repo``/``cache`` and whose verifier
-    accepts ``_VALID_TOKEN`` as ``principal``."""
+    accepts ``_VALID_TOKEN`` as ``principal``.
+
+    A custom ``runner`` (e.g. one that raises during ``process``) can be passed
+    to exercise the handler's mid-loop error paths.
+    """
     app = create_app(_settings())
-    runner = FakeRunner(repo, cache)
-    app.dependency_overrides[get_game_session_runner] = lambda: runner
+    resolved_runner = runner if runner is not None else FakeRunner(repo, cache)
+    app.dependency_overrides[get_game_session_runner] = lambda: resolved_runner
     app.dependency_overrides[get_verifier] = lambda: StubVerifier(principal)
     return app
+
+
+class _ProcessRaisingRunner(FakeRunner):
+    """Runner that authorises normally but raises a chosen error on each turn.
+
+    Lets the handler's mid-loop failure branches be tested without contriving
+    real persistence faults.
+    """
+
+    def __init__(self, repo: FakeGameRepository, cache: FakeCachePort, exc: Exception) -> None:
+        super().__init__(repo, cache)
+        self._exc = exc
+
+    async def process(self, game_id: UUID, action: Action) -> tuple[TurnResult, Dungeon, Player]:
+        raise self._exc
 
 
 def _seed_run(repo: FakeGameRepository, *, owner: UUID, seed: int = 7) -> UUID:
@@ -193,6 +213,18 @@ def test_missing_token_closes_1008(repo: FakeGameRepository, cache: FakeCachePor
     with pytest.raises(WebSocketDisconnect) as exc_info:
         with client.websocket_connect(f"/ws/game/{game_id}") as ws:
             ws.send_json({"type": "auth"})  # no token field
+            ws.receive_json()
+    assert exc_info.value.code == 1008
+
+
+def test_non_auth_first_frame_closes_1008(repo: FakeGameRepository, cache: FakeCachePort) -> None:
+    # The first frame must be the auth handshake; an action frame is rejected.
+    game_id = _seed_run(repo, owner=uuid4())
+    client = TestClient(_make_app(repo, cache, principal=AuthenticatedUser(user_id=uuid4())))
+
+    with pytest.raises(WebSocketDisconnect) as exc_info:
+        with client.websocket_connect(f"/ws/game/{game_id}") as ws:
+            ws.send_json({"action": "wait"})  # not an auth frame
             ws.receive_json()
     assert exc_info.value.code == 1008
 
@@ -293,3 +325,48 @@ def test_abandon_sends_game_over_then_closes_1000(
             # Server closes normally after game over.
             ws.receive_json()
     assert exc_info.value.code == 1000
+
+
+# --- Mid-loop failures -----------------------------------------------------
+
+
+def test_run_vanishing_mid_loop_sends_error_then_closes_1008(
+    repo: FakeGameRepository, cache: FakeCachePort
+) -> None:
+    # Authorised at connect, but the run is gone by the time a turn is processed.
+    owner = uuid4()
+    game_id = _seed_run(repo, owner=owner)
+    runner = _ProcessRaisingRunner(repo, cache, GameNotFoundError(str(game_id)))
+    client = TestClient(
+        _make_app(repo, cache, principal=AuthenticatedUser(user_id=owner), runner=runner)
+    )
+
+    with pytest.raises(WebSocketDisconnect) as exc_info:
+        with client.websocket_connect(f"/ws/game/{game_id}") as ws:
+            ws.send_json({"type": "auth", "token": _VALID_TOKEN})
+            assert ws.receive_json()["type"] == "connected"
+
+            ws.send_json({"action": "wait"})
+            assert ws.receive_json()["type"] == "error"
+
+            ws.receive_json()  # server closes after the error
+    assert exc_info.value.code == 1008
+
+
+def test_unexpected_turn_error_closes_1011(repo: FakeGameRepository, cache: FakeCachePort) -> None:
+    # An unexpected fault during a turn closes the session with 1011, not a crash.
+    owner = uuid4()
+    game_id = _seed_run(repo, owner=owner)
+    runner = _ProcessRaisingRunner(repo, cache, RuntimeError("boom"))
+    client = TestClient(
+        _make_app(repo, cache, principal=AuthenticatedUser(user_id=owner), runner=runner)
+    )
+
+    with pytest.raises(WebSocketDisconnect) as exc_info:
+        with client.websocket_connect(f"/ws/game/{game_id}") as ws:
+            ws.send_json({"type": "auth", "token": _VALID_TOKEN})
+            assert ws.receive_json()["type"] == "connected"
+
+            ws.send_json({"action": "wait"})
+            ws.receive_json()  # server closes with 1011
+    assert exc_info.value.code == 1011

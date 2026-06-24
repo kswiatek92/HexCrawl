@@ -159,9 +159,7 @@ class GameSessionRunner:
         self._session_maker = session_maker
         self._redis = redis
 
-    async def load_authorized(
-        self, game_id: UUID, requester_id: UUID
-    ) -> tuple[Dungeon, Player]:
+    async def load_authorized(self, game_id: UUID, requester_id: UUID) -> tuple[Dungeon, Player]:
         """Load ``game_id`` and confirm ``requester_id`` owns it.
 
         Delegates to the ``GetGame`` use case (cache-first read + ownership
@@ -174,9 +172,7 @@ class GameSessionRunner:
             use_case = GetGame(PostgresGameRepository(session), RedisCache(self._redis))
             return await use_case.execute(game_id, requester_id)
 
-    async def process(
-        self, game_id: UUID, action: Action
-    ) -> tuple[TurnResult, Dungeon, Player]:
+    async def process(self, game_id: UUID, action: Action) -> tuple[TurnResult, Dungeon, Player]:
         """Advance ``game_id`` by one ``action`` and return result + new state.
 
         Runs the ``ProcessTurn`` use case in a fresh per-turn transaction, then
