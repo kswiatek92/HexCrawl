@@ -60,10 +60,13 @@ def test_task_failure_handler_logs_and_drops() -> None:
             sender=_FakeTask(),
             task_id="abc-123",
             exception=exc,
+            args=["score-uuid"],
+            kwargs={},
         )
 
     # Log-and-drop: returns None (no re-raise) and emits exactly one error event
-    # carrying the task name, id, retry count, and the exception.
+    # carrying the task name, id, call args/kwargs (which job failed), retry
+    # count, and the exception.
     assert result is None
     assert len(logs) == 1
     entry = logs[0]
@@ -71,5 +74,7 @@ def test_task_failure_handler_logs_and_drops() -> None:
     assert entry["log_level"] == "error"
     assert entry["task"] == "score_recalc"
     assert entry["task_id"] == "abc-123"
+    assert entry["args"] == ["score-uuid"]
+    assert entry["kwargs"] == {}
     assert entry["retries"] == 2
     assert "boom" in entry["exc"]

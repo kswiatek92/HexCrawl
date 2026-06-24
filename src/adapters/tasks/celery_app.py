@@ -75,22 +75,28 @@ def _log_task_failure(
     sender: object = None,
     task_id: str | None = None,
     exception: BaseException | None = None,
+    args: object = None,
+    kwargs: object = None,
     **extra: object,
 ) -> None:
     """Structured-log a terminally-failed task, then let it drop.
 
     Fires only on terminal failure: a task that calls ``self.retry()`` raises
     ``Retry`` and emits ``task_retry`` instead, so reaching here means the job is
-    done failing. We emit one structured ``error`` event — task name, id, retry
-    count, and the exception — and return, dropping the job. This is the
+    done failing. We emit one structured ``error`` event — task name, id, the
+    call args/kwargs (so the log says *which* job failed, e.g. the ``score_id``),
+    retry count, and the exception — and return, dropping the job. This is the
     log-and-drop policy recorded for task 4.1 (QUESTIONS.md): no re-raise, no
-    dead-letter queue.
+    dead-letter queue. Task payloads here are small JSON-serialisable identifiers
+    (a ``UUID``, a seed), so logging them carries no sensitive-data risk.
     """
     request = getattr(sender, "request", None)
     logger.error(
         "celery.task_failed",
         task=getattr(sender, "name", None),
         task_id=task_id,
+        args=args,
+        kwargs=kwargs,
         retries=getattr(request, "retries", None),
         exc=repr(exception),
     )
