@@ -136,7 +136,7 @@ Weeks/dates below are **remaining work projected from 2026-06-08** at 10 h/week.
 
 | # | Task | Status | Quiz | Who | Notes |
 |---|------|--------|------|-----|-------|
-| 4.1 | Celery app setup | 🔲 | ⬜ | K | broker + result = Redis |
+| 4.1 | Celery app setup | 🔄 | ⬜ | K | broker + result = Redis |
 | 4.2 | `score_recalc` task | 🔲 | ⬜ | K | Async leaderboard rebuild |
 | 4.3 | `map_generation` task | 🔲 | ⬜ | K | Pre-gen floors 10+ |
 | 4.4 | `weekly_leaderboard_reset` task | 🔲 | ⬜ | K | Archive + wipe |
