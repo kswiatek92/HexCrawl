@@ -6,10 +6,12 @@ response schema. No scoring or ranking rule lives here — ordering is the
 repository's contract (``IScoreRepository.top_n``), caching is the use case's
 (``GetLeaderboard``).
 
-``GET /global`` (task 3.10) is **unauthenticated**: the all-time board is public
-per CLAUDE.md's API surface. Only ``GET /me`` (task 3.12) will
-``Depends(get_current_user)``. The weekly board (3.11) reuses the same use case
-with a different ``LeaderboardPeriod``.
+``GET /global`` (task 3.10) and ``GET /weekly`` (3.11) are **unauthenticated**:
+the all-time and weekly boards are public per CLAUDE.md's API surface, and both
+reuse one ``GetLeaderboard`` use case with a different ``LeaderboardPeriod``.
+``GET /me`` (task 3.12) is the lone authenticated route — it
+``Depends(get_current_user)`` and serves a per-user board through the separate,
+uncached ``GetMyScores`` use case.
 """
 
 from typing import Annotated
@@ -17,10 +19,12 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query
 
 from src.application.get_leaderboard import GetLeaderboard
+from src.application.get_my_scores import GetMyScores
 from src.application.leaderboard_cache import LEADERBOARD_SIZE
 from src.domain.models import LeaderboardPeriod
-from src.entrypoints.http.dependencies import get_leaderboard
-from src.entrypoints.http.schemas import LeaderboardResponse
+from src.entrypoints.http.auth import AuthenticatedUser, get_current_user
+from src.entrypoints.http.dependencies import get_leaderboard, get_my_scores
+from src.entrypoints.http.schemas import LeaderboardResponse, MyScoresResponse
 
 router = APIRouter(prefix="/leaderboard", tags=["leaderboard"])
 
@@ -66,4 +70,36 @@ async def leaderboard_weekly(
     scores = await use_case.execute(LeaderboardPeriod.WEEKLY)
     return LeaderboardResponse.from_scores(
         LeaderboardPeriod.WEEKLY, scores, offset=offset, limit=limit
+    )
+
+
+@router.get("/me")
+async def leaderboard_me(
+    current_user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+    use_case: Annotated[GetMyScores, Depends(get_my_scores)],
+    limit: Annotated[int, Query(ge=1, le=LEADERBOARD_SIZE)] = LEADERBOARD_SIZE,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> MyScoresResponse:
+    """Return the authenticated caller's best runs and their board standings.
+
+    The only **authenticated** leaderboard route (``Depends(get_current_user)``):
+    ``global`` / ``weekly`` are public, but "me" is scoped to the caller, whose
+    identity comes from the verified bearer token, never a query param — a client
+    cannot read another user's board. A missing/invalid token is rejected as
+    ``401`` by ``get_current_user`` before the use case runs.
+
+    Unlike the public boards this is not cache-served: the slice is per-user, so
+    the use case reads straight through to Postgres. ``limit``/``offset``
+    paginate the user's run history (same fixed cap of 100, QUESTIONS.md Phase 3
+    decision); an out-of-range value is a ``422`` from the query schema. The two
+    ``*_rank`` fields are pagination-independent — they report where the user's
+    single best run sits on each public board, or ``null`` when unranked.
+    """
+    my_scores = await use_case.execute(current_user.user_id)
+    return MyScoresResponse.from_my_scores(
+        my_scores.scores,
+        global_rank=my_scores.global_rank,
+        weekly_rank=my_scores.weekly_rank,
+        offset=offset,
+        limit=limit,
     )
