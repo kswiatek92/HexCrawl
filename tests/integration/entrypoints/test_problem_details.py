@@ -68,6 +68,13 @@ class _StubVerifier:
         raise AssertionError("verifier should not be called in these tests")
 
 
+class _RaisingLeaderboard:
+    """A use case that raises an unexpected fault — to exercise the 500 path."""
+
+    async def execute(self, period: LeaderboardPeriod) -> list[Score]:
+        raise RuntimeError("boom: internal detail that must not leak to the client")
+
+
 # --- Builders --------------------------------------------------------------
 
 
@@ -171,3 +178,23 @@ def test_422_validation_carries_errors_extension_member() -> None:
     # The per-field validation breakdown rides along as an extension member.
     assert isinstance(body["errors"], list)
     assert body["errors"]  # non-empty: the limit-cap violation is reported
+
+
+def test_unhandled_exception_is_problem_json_500_without_leaking_internals() -> None:
+    app = create_app(_settings())
+    # Wire the route to a use case that raises an unexpected RuntimeError.
+    app.dependency_overrides[get_leaderboard] = lambda: _RaisingLeaderboard()
+    # raise_server_exceptions=False so the TestClient returns the 500 response
+    # instead of re-raising the propagated exception.
+    client = TestClient(app, raise_server_exceptions=False)
+
+    resp = client.get("/v1/leaderboard/global")
+
+    assert resp.status_code == 500
+    assert resp.headers["content-type"] == PROBLEM_JSON_MEDIA_TYPE
+    body = resp.json()
+    assert body["status"] == 500
+    assert body["title"] == "Internal Server Error"
+    assert body["detail"] == "An unexpected error occurred."
+    # The exception message must never reach the client.
+    assert "boom" not in resp.text

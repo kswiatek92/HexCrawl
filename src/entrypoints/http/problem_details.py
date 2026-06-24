@@ -11,8 +11,8 @@ hand-rolled per route — so the ``HTTPException``\\ s already raised in
 through here.
 
 Living in ``src/entrypoints/http/``, this is the outer edge and may import
-``fastapi`` / ``starlette`` / ``pydantic`` freely. Two handlers are installed by
-:func:`install_problem_handlers` (called from ``main.create_app``):
+``fastapi`` / ``starlette`` / ``pydantic`` freely. Three handlers are installed
+by :func:`install_problem_handlers` (called from ``main.create_app``):
 
 * every ``HTTPException`` (Starlette's base, which FastAPI's subclasses) — the
   raised ``status_code`` and ``detail`` map straight onto the problem; any
@@ -21,18 +21,27 @@ Living in ``src/entrypoints/http/``, this is the outer edge and may import
 * ``RequestValidationError`` (FastAPI's 422 for a bad path/query/body) — the
   per-field errors ride along in an ``errors`` extension member so the client
   still gets the granular validation detail FastAPI would have returned.
+* every other ``Exception`` (an unhandled fault in a route / use case) — without
+  this, an unexpected error escapes to Starlette's ``ServerErrorMiddleware`` and
+  returns a bare ``text/plain`` 500, a hole in the "single problem+json shape"
+  contract. The handler renders a 500 problem with a **generic** detail and
+  *never* echoes the exception message or traceback to the client (that would
+  leak internals); the real cause is logged server-side via ``structlog``.
 """
 
 from collections.abc import Mapping
 from http import HTTPStatus
 from typing import Any, cast
 
+import structlog
 from fastapi import FastAPI, Request, Response
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from starlette.exceptions import HTTPException as StarletteHTTPException
+
+logger = structlog.get_logger(__name__)
 
 # RFC 7807 media type. Clients can branch on this to parse the standard error
 # envelope, distinct from a normal ``application/json`` success body.
@@ -43,6 +52,13 @@ PROBLEM_JSON_MEDIA_TYPE = "application/problem+json"
 # it emits a DeprecationWarning. The code is the stable contract; FastAPI raises
 # RequestValidationError as 422 regardless of the constant's spelling.
 _HTTP_422_UNPROCESSABLE = 422
+
+_HTTP_500_INTERNAL = 500
+
+# Generic, client-safe detail for an unhandled fault. Deliberately says nothing
+# about the underlying exception — the message/traceback could leak internals
+# (stack frames, SQL, secrets in repr). The real cause is logged, not returned.
+_INTERNAL_ERROR_DETAIL = "An unexpected error occurred."
 
 
 class ProblemDetail(BaseModel):
@@ -129,13 +145,35 @@ async def _validation_exception_handler(request: Request, exc: Exception) -> Res
     return _render(problem)
 
 
+async def _unhandled_exception_handler(request: Request, exc: Exception) -> Response:
+    """Render any *unhandled* exception as a generic RFC 7807 500 problem.
+
+    The catch-all that closes the contract: anything not already an
+    ``HTTPException`` or ``RequestValidationError`` lands here instead of
+    escaping to Starlette's default ``text/plain`` 500. The client gets a
+    problem+json envelope with a fixed, non-revealing detail; the actual
+    exception (type + traceback) is logged server-side at error level — never
+    placed in the response. Starlette still re-raises after this so the ASGI
+    server's own logging / a test client's ``raise_server_exceptions`` fires.
+    """
+    logger.error("unhandled_exception", path=request.url.path, exc_info=exc)
+    problem = ProblemDetail(
+        title=_title_for(_HTTP_500_INTERNAL),
+        status=_HTTP_500_INTERNAL,
+        detail=_INTERNAL_ERROR_DETAIL,
+        instance=request.url.path,
+    )
+    return _render(problem)
+
+
 def install_problem_handlers(app: FastAPI) -> None:
     """Register the RFC 7807 exception handlers on ``app``.
 
     Called once from ``create_app``. Overrides FastAPI's default ``HTTPException``
-    and ``RequestValidationError`` handlers so every error — from a route's
-    explicit ``raise HTTPException`` to an automatic 422 — leaves as
-    ``application/problem+json``.
+    and ``RequestValidationError`` handlers, plus a catch-all ``Exception``
+    handler, so every error — a route's explicit ``raise HTTPException``, an
+    automatic 422, or an unhandled 500 — leaves as ``application/problem+json``.
     """
     app.add_exception_handler(StarletteHTTPException, _http_exception_handler)
     app.add_exception_handler(RequestValidationError, _validation_exception_handler)
+    app.add_exception_handler(Exception, _unhandled_exception_handler)
