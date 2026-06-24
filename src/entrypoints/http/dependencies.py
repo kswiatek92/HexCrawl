@@ -28,9 +28,11 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.adapters.cache.redis_cache import RedisCache
 from src.adapters.db.game_repository import PostgresGameRepository
+from src.adapters.db.score_repository import PostgresScoreRepository
 from src.application.abandon_game import AbandonGame
 from src.application.game_state import deserialize_game_state, game_state_cache_key
 from src.application.get_game import GetGame
+from src.application.get_leaderboard import GetLeaderboard
 from src.application.process_turn import ProcessTurn
 from src.application.start_game import StartGame
 from src.config import Settings
@@ -94,6 +96,13 @@ def get_game_repository(
     return PostgresGameRepository(session)
 
 
+def get_score_repository(
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> PostgresScoreRepository:
+    """Build the Postgres score repository on the request-scoped session."""
+    return PostgresScoreRepository(session)
+
+
 def get_cache(redis: Annotated[Redis, Depends(get_redis)]) -> RedisCache:
     """Build the Redis cache adapter on the process-wide client."""
     return RedisCache(redis)
@@ -121,6 +130,14 @@ def get_abandon_game(
 ) -> AbandonGame:
     """Assemble the ``AbandonGame`` use case from its injected ports."""
     return AbandonGame(games, cache)
+
+
+def get_leaderboard(
+    scores: Annotated[PostgresScoreRepository, Depends(get_score_repository)],
+    cache: Annotated[RedisCache, Depends(get_cache)],
+) -> GetLeaderboard:
+    """Assemble the ``GetLeaderboard`` cache-aside read use case from its ports."""
+    return GetLeaderboard(scores, cache)
 
 
 # --- WebSocket turn loop: per-turn Unit of Work ---------------------------

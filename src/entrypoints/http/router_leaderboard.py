@@ -1,5 +1,46 @@
-"""Leaderboard router — endpoints land in tasks 3.10–3.12."""
+"""Leaderboard router — public read endpoints for the score boards.
 
-from fastapi import APIRouter
+Like the game router, routes here are thin adapters: they parse query params
+(Pydantic via ``Query``), invoke a read use case, and map the domain result to a
+response schema. No scoring or ranking rule lives here — ordering is the
+repository's contract (``IScoreRepository.top_n``), caching is the use case's
+(``GetLeaderboard``).
+
+``GET /global`` (task 3.10) is **unauthenticated**: the all-time board is public
+per CLAUDE.md's API surface. Only ``GET /me`` (task 3.12) will
+``Depends(get_current_user)``. The weekly board (3.11) reuses the same use case
+with a different ``LeaderboardPeriod``.
+"""
+
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, Query
+
+from src.application.get_leaderboard import GetLeaderboard
+from src.domain.models import LeaderboardPeriod
+from src.entrypoints.http.dependencies import get_leaderboard
+from src.entrypoints.http.schemas import LeaderboardResponse
 
 router = APIRouter(prefix="/leaderboard", tags=["leaderboard"])
+
+
+@router.get("/global")
+async def leaderboard_global(
+    use_case: Annotated[GetLeaderboard, Depends(get_leaderboard)],
+    limit: Annotated[int, Query(ge=1, le=100)] = 100,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> LeaderboardResponse:
+    """Return the all-time global top scores, served from the Redis cache.
+
+    Public (no auth). The use case reads the ranked top-100 slice cache-aside —
+    a cache hit is a single Redis read; a miss rebuilds from Postgres and
+    re-populates the cache. ``limit``/``offset`` paginate within that slice
+    (fixed page size cap of 100, QUESTIONS.md Phase 3 decision); an out-of-range
+    ``limit``/``offset`` is rejected as ``422`` by the query schema before the
+    use case runs. Ranks in the response are absolute (``offset``-aware), not
+    page-relative.
+    """
+    scores = await use_case.execute(LeaderboardPeriod.GLOBAL)
+    return LeaderboardResponse.from_scores(
+        LeaderboardPeriod.GLOBAL, scores, offset=offset, limit=limit
+    )
