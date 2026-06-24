@@ -45,3 +45,25 @@ async def leaderboard_global(
     return LeaderboardResponse.from_scores(
         LeaderboardPeriod.GLOBAL, scores, offset=offset, limit=limit
     )
+
+
+@router.get("/weekly")
+async def leaderboard_weekly(
+    use_case: Annotated[GetLeaderboard, Depends(get_leaderboard)],
+    limit: Annotated[int, Query(ge=1, le=LEADERBOARD_SIZE)] = LEADERBOARD_SIZE,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> LeaderboardResponse:
+    """Return this week's top scores, served from the Redis cache.
+
+    Identical to ``/global`` (same use case, same cache-aside read, same public
+    no-auth access, same ``limit``/``offset`` pagination over the top-100) — the
+    *only* difference is the period: ``WEEKLY`` scopes the board to the current
+    week. The window itself (Monday 00:00 UTC, per CLAUDE.md's Celery weekly
+    reset) is the repository's contract, applied in ``IScoreRepository.top_n``;
+    the period also namespaces a distinct cache key (``leaderboard:WEEKLY``), so
+    the weekly and global slices never collide.
+    """
+    scores = await use_case.execute(LeaderboardPeriod.WEEKLY)
+    return LeaderboardResponse.from_scores(
+        LeaderboardPeriod.WEEKLY, scores, offset=offset, limit=limit
+    )
