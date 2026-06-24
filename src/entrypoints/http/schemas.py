@@ -11,14 +11,16 @@ schema lives here, in the ``from_domain`` classmethods, so the route stays a thi
 adapter and the domain never learns the wire shape exists.
 
 Started for task 3.6 (`POST /game/start`); ``GameStateResponse`` is shared by
-`GET /game/{id}` (task 3.7). Remaining schemas (abandon, leaderboard) land with
-task 3.13.
+`GET /game/{id}` (task 3.7). The leaderboard schemas land with `GET
+/leaderboard/global` (task 3.10) and are reused by the weekly/me boards
+(3.11/3.12). The RFC 7807 error-shape pass is task 3.13.
 
 Coordinate convention: positions cross the wire as ``[x, y]`` arrays (a 2-tuple
 serialises to a JSON array), matching the domain's ``(x, y)`` facing API. Ground
 items are keyed ``"x,y"`` strings because JSON object keys must be strings.
 """
 
+from datetime import datetime
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -28,7 +30,9 @@ from src.domain.models import (
     Enemy,
     Floor,
     Item,
+    LeaderboardPeriod,
     Player,
+    Score,
     TileType,
 )
 
@@ -184,4 +188,73 @@ class GameStateResponse(BaseModel):
             turn_count=dungeon.turn_count,
             player=PlayerState.from_domain(player),
             floor=FloorState.from_domain(current_floor),
+        )
+
+
+class LeaderboardEntry(BaseModel):
+    """One ranked row of a leaderboard response.
+
+    ``rank`` is the 1-indexed position within the period (rank 1 = the top
+    score), carried explicitly so the client renders positions without
+    re-deriving them from list order. Identity is the run owner's ``user_id``:
+    the global board is public (no auth) and ``Score`` carries no display name in
+    v1, so the opaque user UUID is the only attribution available — a Phase 5
+    frontend can resolve it to a name. The four breakdown fields
+    (``value``/``floors_reached``/``kills``/``computed_at``) let the UI show
+    *how* a score was reached, mirroring the fields kept on the ``Score`` model.
+    """
+
+    rank: int
+    user_id: UUID
+    value: int
+    floors_reached: int
+    kills: int
+    computed_at: datetime
+
+    @classmethod
+    def from_domain(cls, score: Score, rank: int) -> "LeaderboardEntry":
+        return cls(
+            rank=rank,
+            user_id=score.user_id,
+            value=score.value,
+            floors_reached=score.floors_reached,
+            kills=score.kills,
+            computed_at=score.computed_at,
+        )
+
+
+class LeaderboardResponse(BaseModel):
+    """A page of a leaderboard: the period and its ranked entries.
+
+    Returned by ``GET /leaderboard/global`` (task 3.10) and reused by the weekly
+    board (3.11). ``period`` echoes which window was queried (``"GLOBAL"`` /
+    ``"WEEKLY"``). ``entries`` is the requested slice of the ranked top-100,
+    already numbered by absolute rank.
+    """
+
+    period: LeaderboardPeriod
+    entries: list[LeaderboardEntry]
+
+    @classmethod
+    def from_scores(
+        cls,
+        period: LeaderboardPeriod,
+        scores: list[Score],
+        *,
+        offset: int,
+        limit: int,
+    ) -> "LeaderboardResponse":
+        """Build a page from the full ranked ``scores`` list.
+
+        Slices ``scores[offset : offset + limit]`` and numbers each entry by its
+        absolute rank — ``offset + i + 1`` — so a paged request still reports
+        true positions (the third row on ``offset=2`` is rank 3, not rank 1).
+        """
+        page = scores[offset : offset + limit]
+        return cls(
+            period=period,
+            entries=[
+                LeaderboardEntry.from_domain(score, rank=offset + i + 1)
+                for i, score in enumerate(page)
+            ],
         )

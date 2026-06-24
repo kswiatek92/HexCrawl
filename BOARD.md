@@ -121,7 +121,7 @@ Weeks/dates below are **remaining work projected from 2026-06-08** at 10 h/week.
 | 3.7 | `GET /game/{id}` | ✅ | ⬜ | K | cache-first/PG-fallback read (no write-back); authZ in use case → 403 foreign / 404 missing; reuses GameStateResponse |
 | 3.8 | `POST /game/{id}/abandon` | ✅ | ⬜ | K | AbandonGame use case: load→authZ→domain Abandon→PG checkpoint→cache refresh; no score; 200 + final state, 403 foreign / 404 missing (mirrors 3.7) |
 | 3.9 | `WS /ws/game/{session_id}` | ✅ | ⬜ | K | Full turn loop: first-message auth → GetGame authZ → per-turn UoW over ProcessTurn → state+events frames; resilient loop, 1008/1000/1011 closes |
-| 3.10 | `GET /leaderboard/global` | 🔲 | ⬜ | K | Served from Redis cache |
+| 3.10 | `GET /leaderboard/global` | ✅ | ⬜ | K | Served from Redis cache |
 | 3.11 | `GET /leaderboard/weekly` | 🔲 | ⬜ | K | |
 | 3.12 | `GET /leaderboard/me` | 🔲 | ⬜ | K | Requires auth |
 | 3.13 | Pydantic v2 request/response schemas | 🔲 | ⬜ | K | |
