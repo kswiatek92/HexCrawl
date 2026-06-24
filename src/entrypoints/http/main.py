@@ -31,6 +31,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from src.adapters.cache.redis_cache import create_redis_client
 from src.config import Settings
 from src.entrypoints.http import router_auth, router_game, router_leaderboard
+from src.entrypoints.ws import router_game as ws_router_game
 
 logger = structlog.get_logger(__name__)
 
@@ -116,6 +117,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     api_router.include_router(router_game.router)
     api_router.include_router(router_leaderboard.router)
     application.include_router(api_router)
+
+    # The WebSocket turn loop (task 3.9) is mounted at the app root — not under
+    # /v1 — to match the CLAUDE.md API surface (`WS /ws/game/{session_id}`).
+    # Browser WS clients build the URL directly, so the documented path is the
+    # contract the frontend (Phase 5) will hardcode.
+    application.include_router(ws_router_game.router)
 
     @application.get("/health", tags=["infra"])
     async def health() -> dict[str, str]:
