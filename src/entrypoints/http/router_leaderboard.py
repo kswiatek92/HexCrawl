@@ -17,6 +17,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query
 
 from src.application.get_leaderboard import GetLeaderboard
+from src.application.leaderboard_cache import LEADERBOARD_SIZE
 from src.domain.models import LeaderboardPeriod
 from src.entrypoints.http.dependencies import get_leaderboard
 from src.entrypoints.http.schemas import LeaderboardResponse
@@ -27,7 +28,7 @@ router = APIRouter(prefix="/leaderboard", tags=["leaderboard"])
 @router.get("/global")
 async def leaderboard_global(
     use_case: Annotated[GetLeaderboard, Depends(get_leaderboard)],
-    limit: Annotated[int, Query(ge=1, le=100)] = 100,
+    limit: Annotated[int, Query(ge=1, le=LEADERBOARD_SIZE)] = LEADERBOARD_SIZE,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> LeaderboardResponse:
     """Return the all-time global top scores, served from the Redis cache.

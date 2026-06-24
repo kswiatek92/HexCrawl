@@ -103,6 +103,22 @@ async def test_cache_miss_rebuilds_from_repo_and_populates_cache() -> None:
 
 
 @pytest.mark.asyncio
+async def test_corrupt_cache_entry_falls_back_to_repo_and_overwrites() -> None:
+    scores = [_score(900)]
+    cache = FakeCachePort()
+    key = leaderboard_cache_key(LeaderboardPeriod.GLOBAL)
+    cache.store[key] = ("not valid json{", LEADERBOARD_CACHE_TTL_SECONDS)  # corrupt
+    repo = FakeScoreRepository(scores=scores)
+
+    result = await GetLeaderboard(repo, cache).execute(LeaderboardPeriod.GLOBAL)
+
+    # A decode failure is treated as a miss: repo consulted, bad entry overwritten.
+    assert result == scores
+    assert repo.top_n_calls == [(LEADERBOARD_SIZE, LeaderboardPeriod.GLOBAL)]
+    assert cache.store[key] == (serialize_leaderboard(scores), LEADERBOARD_CACHE_TTL_SECONDS)
+
+
+@pytest.mark.asyncio
 async def test_cache_miss_with_empty_board_still_populates_cache() -> None:
     cache = FakeCachePort()
     repo = FakeScoreRepository(scores=[])

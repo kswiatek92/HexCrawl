@@ -232,7 +232,7 @@ class LeaderboardResponse(BaseModel):
     already numbered by absolute rank.
     """
 
-    period: str
+    period: LeaderboardPeriod
     entries: list[LeaderboardEntry]
 
     @classmethod
@@ -252,7 +252,7 @@ class LeaderboardResponse(BaseModel):
         """
         page = scores[offset : offset + limit]
         return cls(
-            period=period.value,
+            period=period,
             entries=[
                 LeaderboardEntry.from_domain(score, rank=offset + i + 1)
                 for i, score in enumerate(page)

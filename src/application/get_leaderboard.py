@@ -49,21 +49,30 @@ class GetLeaderboard:
     async def execute(self, period: LeaderboardPeriod = LeaderboardPeriod.GLOBAL) -> list[Score]:
         """Return the ranked top-100 scores for ``period``.
 
-        Reads the cached slice first; on a miss, rebuilds it from the score
-        repository, re-populates the cache (TTL-bounded), and returns. Order is
-        the repository's ranking order (``value`` DESC, ``computed_at`` ASC).
-        The entrypoint paginates within the returned list.
+        Reads the cached slice first; on a miss — or a corrupt cache entry —
+        rebuilds it from the score repository, re-populates the cache
+        (TTL-bounded), and returns. Order is the repository's ranking order
+        (``value`` DESC, ``computed_at`` ASC). The entrypoint paginates within
+        the returned list.
         """
         key = leaderboard_cache_key(period)
 
         blob = await self._cache.get(key)
         if blob is not None:
-            logger.debug("leaderboard_cache_hit", period=period.value)
-            return deserialize_leaderboard(blob)
+            try:
+                scores = deserialize_leaderboard(blob)
+            except (ValueError, KeyError, TypeError):
+                # A corrupt blob is recoverable: the leaderboard is derived data,
+                # so treat a decode failure as a miss and rebuild — the rebuild
+                # below overwrites the bad entry (ICachePort has no delete).
+                logger.warning("leaderboard_cache_corrupt", period=period.value)
+            else:
+                logger.debug("leaderboard_cache_hit", period=period.value)
+                return scores
 
-        # Miss: rebuild from the durable store and re-populate the cache. The
-        # empty result is cached too, so a cold board reads through to Postgres
-        # once rather than on every request.
+        # Miss (or corrupt entry): rebuild from the durable store and re-populate
+        # the cache. The empty result is cached too, so a cold board reads
+        # through to Postgres once rather than on every request.
         logger.info("leaderboard_cache_miss", period=period.value)
         scores = await self._scores.top_n(LEADERBOARD_SIZE, period)
         await self._cache.set(key, serialize_leaderboard(scores), LEADERBOARD_CACHE_TTL_SECONDS)
