@@ -159,6 +159,26 @@ async def test_archive_is_idempotent_per_week(
     assert [(r.rank, r.value) for r in archived] == [(1, 300), (2, 100)]
 
 
+async def test_nonpositive_top_n_archives_nothing(
+    sessionmaker: async_sessionmaker[AsyncSession],
+) -> None:
+    # Port contract symmetry with the read repo's n<=0 guard: top_n <= 0 archives
+    # nothing (count 0) but still reports the real completed-week boundary, and
+    # writes no rows — even with a qualifying score present.
+    this_monday = _this_monday()
+    prev_monday = this_monday - timedelta(days=7)
+    await _save_committed(
+        sessionmaker,
+        _score(value=300, computed_at=prev_monday + timedelta(hours=1)),
+    )
+
+    result = await _archive_committed(sessionmaker, 0)
+
+    assert await _read_archive(sessionmaker) == []
+    assert result.archived_count == 0
+    assert result.week_start == prev_monday
+
+
 async def test_empty_completed_week_archives_nothing(
     sessionmaker: async_sessionmaker[AsyncSession],
 ) -> None:
