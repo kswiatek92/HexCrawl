@@ -18,6 +18,7 @@ from src.domain.models.leaderboard_period import LeaderboardPeriod
 from src.domain.models.player import Player
 from src.domain.models.score import DAMAGE_PENALTY_WEIGHT, Score, compute_score_value
 from src.domain.models.tile_type import TileType
+from src.domain.models.weekly_archive_result import WeeklyArchiveResult
 from src.domain.models.turn_event import (
     ActionRejected,
     EnemyAttacked,
@@ -66,5 +67,6 @@ __all__ = [
     "TurnEvent",
     "UseItem",
     "Wait",
+    "WeeklyArchiveResult",
     "compute_score_value",
 ]
