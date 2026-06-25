@@ -28,9 +28,9 @@ Assignees: `K` = Krzysztof · `?` = unassigned / open for collaborator
 
 **2 hours/day, 5 days/week = 10 hours/week.** (~1 session ≈ 2 hours.)
 Vibe coding with AI assistance. Estimates include quiz time and ~20% debugging buffer.
-Total: **77 tasks across 6 phases, ~84 sessions, ~17 weeks (~4 months) end-to-end.**
+Total: **78 tasks across 6 phases, ~84 sessions, ~17 weeks (~4 months) end-to-end.**
 
-Anchored forward from **2026-06-08**. As of **2026-06-24**: **48/77 tasks done** (Phases 1–3 complete; three CI tasks done early in Phase 6). Remaining: **29 tasks**, ~**8 weeks (~2 months)** → target completion **late August–early September 2026**. Phases 1–3 all closed ahead of estimate — the M3 backend-MVP milestone landed ~2–3 weeks early. (Note: the prior count of "43/77, Phase 3 at 10/15" undercounted Phase 3 by one — the table had 11 done at 3.11; corrected here.)
+Anchored forward from **2026-06-08**. As of **2026-06-24**: **48/78 tasks done** (Phases 1–3 complete; three CI tasks done early in Phase 6). Remaining: **30 tasks**, ~**8 weeks (~2 months)** → target completion **late August–early September 2026**. Phases 1–3 all closed ahead of estimate — the M3 backend-MVP milestone landed ~2–3 weeks early. (Note: the prior count of "43/77, Phase 3 at 10/15" undercounted Phase 3 by one — the table had 11 done at 3.11; corrected here.)
 
 > ⚠️ Task counts and "done" figures are real (counted from the tables below). The **Sessions / Weeks / Target** columns are estimates, not commitments — adjust as real velocity lands.
 
@@ -47,7 +47,7 @@ Weeks/dates below are **remaining work projected from 2026-06-08** at 10 h/week.
 | M3 — Playable via API + WS | Phase 3 | 15/15 ✅ | — | — | **done** |
 | **M3 = backend MVP** | | | | | **Turn loop over HTTP/WS, scores persist** |
 | M4 — Async workers live | Phase 4 | 0/7 | ~9 | ~2 | mid-to-late July 2026 |
-| M5 — Browser game playable | Phase 5 | 0/12 | ~14 | ~3 | mid-August 2026 |
+| M5 — Browser game playable | Phase 5 | 0/13 | ~14 | ~3 | mid-August 2026 |
 | **M5 = playable game** | | | | | **End-to-end in the browser (local)** |
 | M6 — Deployed to AWS | Phase 6 | 3/13 | ~14 | ~3 | late August–early September 2026 |
 | **M6 = v1 release** | | | | | **Live on AWS ECS Fargate, HTTPS** |
@@ -153,18 +153,38 @@ Weeks/dates below are **remaining work projected from 2026-06-08** at 10 h/week.
 | # | Task | Status | Quiz | Who | Notes |
 |---|------|--------|------|-----|-------|
 | 5.1 | Vite + React setup | 🔲 | ⬜ | K | |
-| 5.2 | Design 16×16 pixel tile set | 🔲 | ⬜ | K | GBA-style 4-colour palette |
-| 5.3 | Canvas renderer | 🔲 | ⬜ | K | Draws Floor grid from game state JSON |
-| 5.4 | Player sprite + movement animation | 🔲 | ⬜ | K | |
-| 5.5 | Enemy sprites (3 types minimum) | 🔲 | ⬜ | K | |
+| 5.2 | Design 16×16 pixel tile set | 🔲 | ⬜ | K | 🎨 **floor-layout tiles** — wall/floor/stairs/door; GBA-style 4-colour palette |
+| 5.3 | Canvas renderer | 🔲 | ⬜ | K | 🎨 consumes the 5.2 tile set; draws Floor grid from game state JSON |
+| 5.4 | Player sprite + movement animation | 🔲 | ⬜ | K | 🎨 **player sprite** (+ idle/move frames) |
+| 5.5 | Enemy sprites (3 types minimum) | 🔲 | ⬜ | K | 🎨 **enemy sprites** — melee / ranged / boss |
+| 5.5a | Item sprites (per `ItemType`) | 🔲 | ⬜ | K | 🎨 **item sprites** — potion / weapon / etc.; render on floor grid + HUD inventory (`ItemType` enum, 1.4) |
 | 5.6 | `useGameSocket` hook | 🔲 | ⬜ | K | Sends actions, receives state |
 | 5.7 | Keyboard input handler | 🔲 | ⬜ | K | WASD / arrows / space |
-| 5.8 | HUD (HP, floor, score, inventory) | 🔲 | ⬜ | K | |
-| 5.9 | Game over screen | 🔲 | ⬜ | K | |
-| 5.10 | Leaderboard page (global + weekly tabs) | 🔲 | ⬜ | K | |
-| 5.11 | Auth screens (login / register) | 🔲 | ⬜ | K | |
+| 5.8 | HUD (HP, floor, score, inventory) | 🔲 | ⬜ | K | 🎨 **HUD layout** (+ item icons in inventory — see gap below) |
+| 5.9 | Game over screen | 🔲 | ⬜ | K | 🎨 **screen layout** |
+| 5.10 | Leaderboard page (global + weekly tabs) | 🔲 | ⬜ | K | 🎨 **page layout** |
+| 5.11 | Auth screens (login / register) | 🔲 | ⬜ | K | 🎨 **screen layout** |
 | 5.12 | Supabase JWT auth flow | 🔲 | ⬜ | K | |
 | 📝 | **Phase 5 quiz** | — | ⬜ | K | Must pass before Phase 6 |
+
+> 🎨 **Design assets needed.** Rows marked 🎨 need pixel art / UI mockups produced (or sourced)
+> before the task can be built. All visual design work lives in Phase 5 — Phases 1–4 are pure
+> backend logic with no art dependency (the BSP "floor layout" of task 1.13 is *algorithmic*, not visual).
+>
+> 📋 **Generation shot-list + prompts:** [`docs/art-assets.md`](docs/art-assets.md) — the 13 base
+> assets (player/enemies/items/tiles) with ready-to-paste ComfyUI prompts and the shared GBA palette
+> ([`docs/palettes/gameboy-4.gpl`](docs/palettes/gameboy-4.gpl)).
+>
+> | Asset | Task | Notes |
+> |-------|------|-------|
+> | **Floor-layout tiles** — wall, floor, stairs, door | 5.2 → 5.3 | 16×16, GBA 4-colour palette; the visual vocabulary the canvas renders |
+> | **Player sprite** (+ idle / move frames) | 5.4 | |
+> | **Enemy sprites** — melee, ranged, boss | 5.5 | 3 types min; boss variant ties to "boss every 5th floor" (backlog) |
+> | **Item sprites** — potion / weapon / etc. | 5.5a | Render on the floor grid and in the HUD inventory; one per `ItemType` (enum, task 1.4) |
+> | **HUD layout** — HP / floor / score / inventory | 5.8 | |
+> | **Game over screen** | 5.9 | |
+> | **Leaderboard page** — global + weekly tabs | 5.10 | |
+> | **Auth screens** — login / register | 5.11 | |
 
 ---
 

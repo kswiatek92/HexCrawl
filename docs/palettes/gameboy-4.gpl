@@ -1,0 +1,9 @@
+GIMP Palette
+Name: GameBoy DMG 4
+Columns: 4
+# Classic 4-colour Game Boy ramp. Edit the RGB rows to recolour;
+# keep it to 4 entries for the GBA-style look (task 5.2).
+15 56 15	darkest
+48 98 48	dark
+139 172 15	light
+155 188 15	lightest
