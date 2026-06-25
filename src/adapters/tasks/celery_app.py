@@ -7,8 +7,10 @@ it imports a framework (``celery``) and therefore may never be imported by
 ``domain/`` or ``application/``. The application layer reaches the worker solely
 through the :class:`IScoreRecalcQueue` port
 (``src/domain/ports/score_recalc_queue.py``); the Celery *producer* that conforms
-to that port is a separate adapter built in task 4.2. This module only stands up
-the app — no tasks, no Beat schedule yet (tasks 4.2–4.5).
+to that port is a separate adapter built in task 4.2. This module stands up the app
+and lists task modules for worker discovery (``include``); the tasks themselves
+live in their own modules (``score_recalc.py`` lands with 4.2). No Beat schedule
+yet (task 4.5).
 
 Design, pinned to ``QUIZZES.md`` task 4.1:
 
@@ -56,10 +58,17 @@ _settings = Settings()
 
 logger = structlog.get_logger(__name__)
 
+# ``include`` lists the modules a freshly-booted worker must import to register
+# its tasks. ``celery -A src.adapters.tasks.celery_app worker`` only imports *this*
+# module to find ``app``; task modules are otherwise never imported, so their
+# ``@app.task`` decorators never run and the worker reports "unregistered task".
+# The strings are imported lazily on app finalisation (no import here → no cycle).
+# Each Phase 4 task module (4.2–4.5) adds itself to this list.
 app = Celery(
     "hexcrawl",
     broker=_settings.celery_broker_url,
     backend=_settings.celery_result_backend,
+    include=["src.adapters.tasks.score_recalc"],
 )
 
 app.conf.update(
