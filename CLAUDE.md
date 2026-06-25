@@ -48,7 +48,7 @@ src/
 ├── domain/                  # Pure Python. No framework deps. Ever.
 │   ├── models/              # Dataclasses: Player, Dungeon, Floor, Enemy, Item, Score
 │   ├── services/            # GameService, ScoreService, DungeonGenerator
-│   └── ports/               # Protocol interfaces: IGameRepo, IScoreRepo, ICachePort, IScoreRecalcQueue
+│   └── ports/               # Protocol interfaces: IGameRepo, IScoreRepo, ICachePort, IScoreRecalcQueue, IMapGenerationQueue
 │
 ├── application/             # Use cases. Orchestrates domain services.
 │   ├── start_game.py        # CreateGame use case
@@ -112,7 +112,10 @@ The Redis entry is the `(Dungeon, Player)` pair, keyed `game:{dungeon_id}` and J
 by `src/application/game_state.py` (`game_state_cache_key`, `serialize_game_state`,
 `GAME_STATE_TTL_SECONDS`). Serialisation lives in the **application layer**, never in the cache
 adapter (which stays a generic `str` store) — see `domain/ports/cache_port.py`. Use cases share
-this module: `StartGame` seeds it; `ProcessTurn` reads/writes it.
+this module: `StartGame` seeds it; `ProcessTurn` reads/writes it. The per-`Floor` half of the
+codec (`floor_to_dict`/`floor_from_dict`) is **owned by `src/application/floor_cache.py`** and
+imported here — one Floor wire-shape, shared between the active blob and a standalone
+pre-generated floor (`map_generation`), never duplicated.
 
 ---
 
@@ -152,12 +155,16 @@ through the `IScoreRecalcQueue` port (`domain/ports/score_recalc_queue.py`); the
 concrete Celery producer (`CeleryScoreRecalcQueue`) and the task itself live in
 `adapters/tasks/score_recalc.py` (task 4.2). The port carries a `score_id`, never a
 domain object — task args cross a process boundary and must be JSON-serialisable,
-not pickled.
+not pickled. `map_generation` follows the same shape: the descent path enqueues through
+the `IMapGenerationQueue` port (`domain/ports/map_generation_queue.py`); the producer
+(`CeleryMapGenerationQueue`) and task live in `adapters/tasks/map_generation.py` (task 4.3),
+and the port carries the floor *recipe* (`seed`, `floor_index`) + ids, never a `Floor`.
 
 Each task is a thin **adapter** over an application use case: the rebuild logic is
-`RebuildLeaderboard` (application layer, ports only); the task wires the concrete
-repo/cache and bridges Celery's sync worker to the async data layer with
-`asyncio.run`, building and disposing a per-run engine + Redis client. Every task
+`RebuildLeaderboard`, the deep-floor pre-gen is `GenerateFloor` (both application layer,
+ports only); the task wires the concrete repo/cache and bridges Celery's sync worker to the
+async data layer with `asyncio.run`, building and disposing a per-run engine and/or Redis
+client (`map_generation` needs only Redis — it writes the cache, reads no DB). Every task
 module must register itself in `celery_app`'s `Celery(..., include=[...])` list —
 the worker boots from `celery_app` alone and won't import (so won't register) task
 modules otherwise.
