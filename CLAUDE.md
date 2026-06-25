@@ -48,7 +48,7 @@ src/
 ├── domain/                  # Pure Python. No framework deps. Ever.
 │   ├── models/              # Dataclasses: Player, Dungeon, Floor, Enemy, Item, Score
 │   ├── services/            # GameService, ScoreService, DungeonGenerator
-│   └── ports/               # Protocol interfaces: IGameRepo, IScoreRepo, ICachePort, IScoreRecalcQueue, IMapGenerationQueue
+│   └── ports/               # Protocol interfaces: IGameRepo, IScoreRepo, IScoreAdminRepo, ICachePort, IScoreRecalcQueue, IMapGenerationQueue
 │
 ├── application/             # Use cases. Orchestrates domain services.
 │   ├── start_game.py        # CreateGame use case
@@ -159,13 +159,24 @@ not pickled. `map_generation` follows the same shape: the descent path enqueues 
 the `IMapGenerationQueue` port (`domain/ports/map_generation_queue.py`); the producer
 (`CeleryMapGenerationQueue`) and task live in `adapters/tasks/map_generation.py` (task 4.3),
 and the port carries the floor *recipe* (`seed`, `floor_index`) + ids, never a `Floor`.
+`weekly_leaderboard_reset` (task 4.4) is the exception: it has **no producer / queue port**
+because nothing enqueues it — it is **Beat-triggered** (the schedule lands in task 4.5), so
+`adapters/tasks/weekly_leaderboard_reset.py` holds only the worker task.
 
 Each task is a thin **adapter** over an application use case: the rebuild logic is
-`RebuildLeaderboard`, the deep-floor pre-gen is `GenerateFloor` (both application layer,
-ports only); the task wires the concrete repo/cache and bridges Celery's sync worker to the
-async data layer with `asyncio.run`, building and disposing a per-run engine and/or Redis
-client (`map_generation` needs only Redis — it writes the cache, reads no DB). Every task
-module must register itself in `celery_app`'s `Celery(..., include=[...])` list —
+`RebuildLeaderboard`, the deep-floor pre-gen is `GenerateFloor`, the weekly reset is
+`ResetWeeklyLeaderboard` (all application layer, ports only); the task wires the concrete
+repo/cache and bridges Celery's sync worker to the async data layer with `asyncio.run`,
+building and disposing a per-run engine and/or Redis client (`map_generation` needs only
+Redis — it writes the cache, reads no DB; `weekly_leaderboard_reset` needs both — it writes
+the archive table and refreshes the weekly cache slice). The weekly reset is **archive +
+non-destructive view-reset, never a DELETE**: the weekly board is a `computed_at` window over
+the *shared* `scores` table (`top_n(.., WEEKLY)`), so it resets itself when the Monday
+boundary advances; the task archives the just-completed week's standings into the
+`weekly_leaderboard_archive` table (otherwise lost when the window moves) via the new
+`IScoreAdminRepository` port — split out per `IScoreRepository`'s own "admin ops go on a
+separate port" doctrine — then refreshes the `leaderboard:WEEKLY` cache to the new week.
+Every task module must register itself in `celery_app`'s `Celery(..., include=[...])` list —
 the worker boots from `celery_app` alone and won't import (so won't register) task
 modules otherwise.
 

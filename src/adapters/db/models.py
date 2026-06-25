@@ -184,3 +184,35 @@ Index(
     ScoreRow.value.desc(),
     ScoreRow.computed_at.asc(),
 )
+
+
+class WeeklyLeaderboardArchiveRow(Base):
+    """A snapshotted entry of a *completed* week's leaderboard (task 4.4).
+
+    The weekly board is a ``computed_at`` window over the shared ``scores`` table,
+    so it resets itself when the week advances — and the finished week's standings
+    would be unrecoverable afterwards. The ``weekly_leaderboard_reset`` task
+    archives them here, one row per ranked entry, before the window moves on.
+
+    Like ``ScoreRow``, these are **plain columns, no foreign key** to ``scores``:
+    an archive is an immutable historical record that must outlive score churn and
+    run cleanup, so coupling its lifecycle to the live tables via a cascade would
+    let routine deletion erase leaderboard history.
+
+    ``UniqueConstraint(week_start, score_id)`` makes the archive idempotent per
+    week: the adapter snapshots a week by deleting that week's rows and
+    re-inserting, so a retried task replaces rather than duplicates.
+    """
+
+    __tablename__ = "weekly_leaderboard_archive"
+    __table_args__ = (UniqueConstraint("week_start", "score_id"),)
+
+    archive_id: Mapped[UUID] = mapped_column(primary_key=True)
+    # Monday 00:00 UTC of the completed week this entry belongs to. Indexed: the
+    # adapter reads / replaces a whole week by this key.
+    week_start: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    rank: Mapped[int]
+    score_id: Mapped[UUID]
+    user_id: Mapped[UUID] = mapped_column(index=True)
+    value: Mapped[int]
+    computed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

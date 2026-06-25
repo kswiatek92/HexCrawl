@@ -30,6 +30,7 @@ from src.domain.models.turn_event import (
     RunAbandoned,
     TurnEvent,
 )
+from src.domain.models.weekly_archive_result import WeeklyArchiveResult
 
 __all__ = [
     "Abandon",
@@ -66,5 +67,6 @@ __all__ = [
     "TurnEvent",
     "UseItem",
     "Wait",
+    "WeeklyArchiveResult",
     "compute_score_value",
 ]
