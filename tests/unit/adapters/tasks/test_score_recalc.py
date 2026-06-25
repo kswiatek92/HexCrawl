@@ -174,3 +174,31 @@ async def test_rebuild_disposes_resources_even_when_use_case_raises(
 
     assert engine.disposed is True
     assert redis.closed is True
+
+
+async def test_rebuild_closes_redis_even_when_engine_dispose_raises(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The nested-finally guarantee: a failing engine.dispose() must NOT skip the
+    # Redis teardown. Flatten the finally back to two sequential awaits and this
+    # leaks (redis.closed stays False) — exactly the Copilot-flagged failure path.
+    engine, redis = _FakeEngine(), _FakeRedis()
+    _patch_infra(monkeypatch, engine, redis)
+
+    async def _boom_dispose() -> None:
+        raise RuntimeError("dispose boom")
+
+    monkeypatch.setattr(engine, "dispose", _boom_dispose)
+
+    class _NoopRebuild:
+        def __init__(self, *a: object, **k: object) -> None: ...
+
+        async def execute(self) -> None: ...
+
+    monkeypatch.setattr(mod, "RebuildLeaderboard", _NoopRebuild)
+
+    with pytest.raises(RuntimeError, match="dispose boom"):
+        await mod._rebuild_leaderboard()
+
+    # dispose raised and propagated, but Redis was still closed.
+    assert redis.closed is True

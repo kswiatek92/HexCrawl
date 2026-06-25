@@ -98,10 +98,10 @@ async def test_reads_full_leaderboard_size_per_period() -> None:
     await RebuildLeaderboard(repo, cache).execute()
 
     # Exactly one top_n read per period, each asking for the full top-100 slice.
-    assert repo.top_n_calls == [
-        (LEADERBOARD_SIZE, LeaderboardPeriod.GLOBAL),
-        (LEADERBOARD_SIZE, LeaderboardPeriod.WEEKLY),
-    ]
+    # Asserted against LeaderboardPeriod dynamically (not a hard-coded member
+    # list) so the test tracks the use case's "iterate every period" contract and
+    # survives a future period being added.
+    assert repo.top_n_calls == [(LEADERBOARD_SIZE, period) for period in LeaderboardPeriod]
 
 
 async def test_cold_board_writes_empty_slice_per_period() -> None:

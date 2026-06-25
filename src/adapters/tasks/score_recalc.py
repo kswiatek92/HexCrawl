@@ -90,8 +90,13 @@ async def _rebuild_leaderboard() -> None:
             use_case = RebuildLeaderboard(PostgresScoreRepository(session), RedisCache(redis))
             await use_case.execute()
     finally:
-        await engine.dispose()
-        await redis.aclose()
+        # Nested try/finally so a failing engine.dispose() can't skip the Redis
+        # teardown — otherwise the connection pool leaks on the dispose error path
+        # (and the task would then retry, leaking once per attempt).
+        try:
+            await engine.dispose()
+        finally:
+            await redis.aclose()
 
 
 @app.task(  # type: ignore[untyped-decorator]  # celery ships no stubs (mypy-strict)
