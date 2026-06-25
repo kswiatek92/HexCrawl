@@ -1,0 +1,23 @@
+{
+  "_comment": "Sprite manifest for the Phase 5 renderer. Keys mirror the domain enums (BehaviourType / ItemType / TileType) so the canvas can index a sprite directly from the value it receives over the WebSocket. Paths are repo-root-relative. 'status': draft=usable, rough=reads ok but worth redrawing, todo=missing. All sprites are AI-generated drafts quantized to docs/palettes/gameboy-4.gpl.",
+  "palette": "docs/palettes/gameboy-4.gpl",
+  "player": { "sprite": "assets/sprites/player/player.png", "size": 32, "status": "draft", "source": "knight" },
+  "enemies": {
+    "MELEE":  { "sprite": "assets/sprites/enemies/melee.png",  "size": 32, "status": "draft", "source": "goblin" },
+    "RANGED": { "sprite": "assets/sprites/enemies/ranged.png", "size": 32, "status": "rough", "source": "skeleton (reads as generic humanoid)" },
+    "BOSS":   { "sprite": "assets/sprites/enemies/boss.png",   "size": 48, "status": "draft", "source": "ogre" }
+  },
+  "items": {
+    "WEAPON": { "sprite": "assets/sprites/items/weapon.png", "size": 32, "status": "draft", "source": "sword" },
+    "ARMOR":  { "sprite": "assets/sprites/items/armor.png",  "size": 32, "status": "rough", "source": "chestplate (reads shield-ish)" },
+    "SHIELD": { "sprite": "assets/sprites/items/shield.png", "size": 32, "status": "draft", "source": "round shield" },
+    "POTION": { "sprite": "assets/sprites/items/potion.png", "size": 32, "status": "draft", "source": "red potion" },
+    "KEY":    { "sprite": "assets/sprites/items/key.png",    "size": 32, "status": "draft", "source": "golden key" }
+  },
+  "tiles": {
+    "WALL":   { "sprite": "assets/sprites/tiles/wall.png",  "size": 16, "status": "draft", "source": "stone brick (not verified seamless)" },
+    "FLOOR":  { "sprite": "assets/sprites/tiles/floor.png", "size": 16, "status": "draft", "source": "cobblestone (not verified seamless)" },
+    "DOOR":   { "sprite": "assets/sprites/tiles/door.png",  "size": 16, "status": "rough", "source": "wooden door archway" },
+    "STAIRS": { "sprite": null, "size": 16, "status": "todo", "source": "hand-draw — SD1.5 cannot produce a staircase tile" }
+  }
+}

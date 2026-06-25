@@ -175,6 +175,11 @@ Weeks/dates below are **remaining work projected from 2026-06-08** at 10 h/week.
 > assets (player/enemies/items/tiles) with ready-to-paste ComfyUI prompts and the shared GBA palette
 > ([`docs/palettes/gameboy-4.gpl`](docs/palettes/gameboy-4.gpl)).
 >
+> 🟢 **Draft sprites generated:** [`assets/`](assets/) holds AI-generated draft sprites named by
+> domain enum + [`assets/manifest.json`](assets/manifest.json) for the renderer. 12/13 done; only
+> **`tiles/stairs.png` remains** (hand-draw — SD1.5 can't make a staircase tile). A few are `rough`
+> (skeleton, armor, door) — see the manifest `status` field.
+>
 > | Asset | Task | Notes |
 > |-------|------|-------|
 > | **Floor-layout tiles** — wall, floor, stairs, door | 5.2 → 5.3 | 16×16, GBA 4-colour palette; the visual vocabulary the canvas renders |
