@@ -139,7 +139,7 @@ Weeks/dates below are **remaining work projected from 2026-06-08** at 10 h/week.
 | 4.1 | Celery app setup | ✅ | ⬜ | K | broker + result = Redis; JSON-only serialisation (no pickle), UTC clock; `task_failure` → structlog log-and-drop (QUESTIONS.md 4.1, no DLQ); instance `app` in `adapters/tasks/celery_app.py` |
 | 4.2 | `score_recalc` task | ✅ | ⬜ | K | Async leaderboard rebuild |
 | 4.3 | `map_generation` task | ✅ | ⬜ | K | Pre-gen floors 10+ |
-| 4.4 | `weekly_leaderboard_reset` task | 🔲 | ⬜ | K | Archive + wipe |
+| 4.4 | `weekly_leaderboard_reset` task | 🔄 | ⬜ | K | Archive + wipe |
 | 4.5 | Celery Beat schedule | 🔲 | ⬜ | K | Mon 00:00 UTC |
 | 4.6 | Add Celery + Beat to `docker-compose.yml` | 🔲 | ⬜ | K | |
 | 4.7 | Test `SubmitScore` enqueues task correctly | 🔲 | ⬜ | K | |
