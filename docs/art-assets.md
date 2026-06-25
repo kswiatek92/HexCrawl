@@ -42,9 +42,12 @@ batch so the set stays coherent. Use `16bitscene` (not `pixelsprite`) for tiles.
 | POTION | `a red health potion bottle item icon` | HP restored |
 | KEY | `a golden key item icon` | opens doors |
 
-> **Item tip:** generate all five in ONE pass for instant consistency —
-> `pixelsprite, 16-bit jrpg style, a grid of rpg item icons, steel sword, chestplate, round shield, red potion, golden key, plain white background`
-> then slice them apart in Aseprite. Items are tiny, so a shared generation beats one-by-one.
+> **Item tip:** generate items **one at a time** (one Queue each), keeping the fixed prefix +
+> fixed seed and swapping only the subject. SD1.5 has weak compositional binding — it cannot
+> reliably lay out several distinct objects in one image (a "grid of icons" prompt just renders
+> one blended object), so don't try to batch them in a single pass. Consistency comes from the
+> shared recipe + palette, not from co-generation. Assemble the icons into a sheet in Aseprite
+> afterward. (Multi-object layout needs SDXL/Flux or regional-prompting nodes — overkill here.)
 
 ## 4. Tiles — BOARD 5.2  (16×16, MUST be seamless/tileable)
 
