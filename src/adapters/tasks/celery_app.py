@@ -68,7 +68,11 @@ app = Celery(
     "hexcrawl",
     broker=_settings.celery_broker_url,
     backend=_settings.celery_result_backend,
-    include=["src.adapters.tasks.score_recalc", "src.adapters.tasks.map_generation"],
+    include=[
+        "src.adapters.tasks.score_recalc",
+        "src.adapters.tasks.map_generation",
+        "src.adapters.tasks.weekly_leaderboard_reset",
+    ],
 )
 
 app.conf.update(
