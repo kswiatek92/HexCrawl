@@ -112,8 +112,8 @@ Rules:
 - [x] Styling — Tailwind, CSS Modules, or vanilla CSS? (task 5.1) → **Tailwind.** Fastest path to build the HUD / leaderboard / auth chrome; the pixel canvas is drawn imperatively, so styling only covers the surrounding UI. Conventional, strong portfolio signal.
 - [x] Router — React Router, TanStack Router, or no router (single-page)? (task 5.1) → **React Router.** Genuinely distinct views worth real URLs (`/`, `/leaderboard`, `/login`). Mature standard; TanStack Router's extra type-safety machinery isn't justified at this scale, and "no router" would force hand-rolled view switching.
 - [ ] Canvas target resolution — 240×160 (GBA-native) scaled up, or device-native? (task 5.3)
-- [ ] Exact 4-colour palette hex values — pick now or iterate? (task 5.2)
-- [ ] Sprite source — hand-author, generate, or use an open tileset? (tasks 5.2, 5.4, 5.5)
+- [x] Exact 4-colour palette hex values — pick now or iterate? (task 5.2) → **Pick now — lock to the classic Game Boy DMG ramp already in [`docs/palettes/gameboy-4.gpl`](docs/palettes/gameboy-4.gpl): `#0F380F` (darkest) / `#306230` (dark) / `#8BAC0F` (light) / `#9BBC0F` (lightest).** Pinning the palette is what makes 5.2 a bounded task; recolouring later is a cheap `.gpl` edit + re-quantize, so there's no cost to committing now. The renderer (5.3) reads these four and nothing else.
+- [x] Sprite source — hand-author, generate, or use an open tileset? (tasks 5.2, 5.4, 5.5) → **AI-generated drafts + hand-draw the stragglers.** Use the ComfyUI drafts already in [`assets/`](assets/) (quantized to the palette per [`docs/art-assets.md`](docs/art-assets.md), indexed by [`assets/manifest.json`](assets/manifest.json)); reserve hand-drawing for what SD1.5 can't produce — `tiles/stairs.png` (still `todo`) and tidying the `rough` ones (`door`, then `ranged`/`armor`). Not an open tileset: it would clash with the bespoke GBA look and add licensing/attribution overhead for a portfolio piece.
 - [ ] Testing scope — Vitest + RTL only, or add Playwright for e2e? (implied by CI)
 
 ---
