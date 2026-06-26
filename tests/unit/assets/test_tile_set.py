@@ -41,14 +41,22 @@ def _decode_png(data: bytes) -> tuple[int, int, Pixels]:
         chunk = data[pos + 8 : pos + 8 + length]
         pos += 12 + length  # length + tag + data + crc
         if tag == b"IHDR":
-            width, height, bit_depth, color_type = struct.unpack(">IIBB", chunk[:10])
+            width, height, bit_depth, color_type, compression, filter_method, interlace = (
+                struct.unpack(">IIBBBBB", chunk[:13])
+            )
             assert bit_depth == 8 and color_type == 6, "expected 8-bit RGBA"
+            assert (compression, filter_method, interlace) == (
+                0,
+                0,
+                0,
+            ), "expected non-interlaced PNG"
         elif tag == b"IDAT":
             idat += chunk
         elif tag == b"IEND":
             break
     raw = zlib.decompress(bytes(idat))
     stride = width * 4
+    assert len(raw) == height * (stride + 1), "decoded IDAT length does not match dimensions"
     rows: Pixels = []
     for y in range(height):
         start = y * (stride + 1)
