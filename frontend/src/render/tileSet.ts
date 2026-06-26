@@ -29,8 +29,7 @@ function loadImage(url: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => resolve(img);
-    img.onerror = () =>
-      reject(new Error(`Failed to load tile sprite: ${url}`));
+    img.onerror = () => reject(new Error(`Failed to load tile sprite: ${url}`));
     img.src = url;
   });
 }
