@@ -140,7 +140,7 @@ Weeks/dates below are **remaining work projected from 2026-06-08** at 10 h/week.
 | 4.2 | `score_recalc` task | ✅ | ⬜ | K | Async leaderboard rebuild |
 | 4.3 | `map_generation` task | ✅ | ⬜ | K | Pre-gen floors 10+ |
 | 4.4 | `weekly_leaderboard_reset` task | ✅ | ⬜ | K | Archive (new `weekly_leaderboard_archive` table via `IScoreAdminRepository`) + non-destructive view-reset (refresh `leaderboard:WEEKLY` cache); Beat-triggered, no queue port; schedule is 4.5 |
-| 4.5 | Celery Beat schedule | 🔄 | ⬜ | K | Mon 00:00 UTC |
+| 4.5 | Celery Beat schedule | ✅ | ⬜ | K | Mon 00:00 UTC |
 | 4.6 | Add Celery + Beat to `docker-compose.yml` | 🔲 | ⬜ | K | |
 | 4.7 | Test `SubmitScore` enqueues task correctly | 🔲 | ⬜ | K | |
 | 📝 | **Phase 4 quiz** | — | ⬜ | K | Must pass before Phase 5 |
