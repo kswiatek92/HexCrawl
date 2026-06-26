@@ -19,7 +19,7 @@ State / styling / routing choices are recorded in the repo-root `QUESTIONS.md`
 
 ## Prerequisites
 
-- Node 20.19+ (CI uses Node 20)
+- Node 20+ (CI uses Node 20)
 - pnpm 9 (`corepack use pnpm@9` or `corepack pnpm@9 …`)
 
 ## Commands
