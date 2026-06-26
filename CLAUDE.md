@@ -236,6 +236,17 @@ modules otherwise.
   prefixes, never a hard-coded backend origin.
 - **TypeScript:** a single root `tsconfig.json` with `noEmit` (not the multi-project-reference
   template) so `pnpm tsc --noEmit` actually type-checks `src/`.
+- **Canvas rendering** (task 5.3) lives in `frontend/src/render/`, split three ways:
+  pure viewport/camera math (`camera.ts`, DOM-free, fully unit-tested) → imperative blit
+  (`drawFloor.ts`, all inputs injected, tested with a recording fake `ctx`) → the React
+  component (`GameCanvas.tsx`, owns the `requestAnimationFrame` loop + lifecycle). The render
+  model is fixed (QUESTIONS.md:114): a **240×160 GBA-native backing buffer** (15×10 tiles of
+  16px) integer-scaled with `image-rendering: pixelated`, and a **player-following camera**
+  (the 80×50 floor far exceeds the window). The loop reads the latest state from a ref so the
+  draw cadence (rAF) is decoupled from the update cadence (turns/props). New sprite layers
+  (player 5.4, enemies 5.5, items 5.5a) extend `drawFloor` over the same camera. Tiles are
+  bundled copies under `src/assets/tiles/`; the source of truth is `assets/tools/gen_tiles.py`.
+  Wire-shape types mirror `src/entrypoints/http/schemas.py` in `frontend/src/types/gameState.ts`.
 - **Lint:** `pnpm lint` (ESLint, flat config `eslint.config.js`).
 - **Format:** `pnpm exec prettier --check .`
 - **Types:** `pnpm tsc --noEmit`.

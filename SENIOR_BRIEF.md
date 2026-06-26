@@ -100,6 +100,16 @@ Stateless workers scale horizontally — run 10, each pulls different jobs off t
 
 ---
 
+## 5 — Architecture & Separation of Concerns
+
+### Decouple rendering from state (read cadence ≠ write cadence)
+The thing that *draws* (a `requestAnimationFrame` loop, a render pass) should read the **current** state and paint it, independent of the thing that *updates* state (events, turns, props). The renderer pulls the latest state each frame rather than being pushed a redraw on every change — so a state update is just "new data is available," not "draw now." React's "UI is a function of state" is the same idea; so is splitting a read model from a write model (CQRS).
+**Why it matters:** the two run at different rates — display refresh (~60 Hz) vs game turns (~10 Hz or bursty) — and coupling them means either dropped frames or redundant redraws, plus a tangle where every state mutation has to know how to repaint. Decoupling lets each side change cadence freely and keeps the draw path a pure function of whatever state happens to be current.
+**Code-review tell:** a render call fired directly inside an event/state handler (`onMessage → draw()`), or a `useEffect`/subscription that triggers a repaint per state change instead of a steady loop reading the latest value. In React: the rAF loop should read a `ref` holding the live state, with a tiny effect syncing prop→ref — not close over the prop (a stale closure) or restart the loop on every update.
+**Reference:** HexCrawl `frontend/src/render/GameCanvas.tsx` (task 5.3) — rAF loop reads `stateRef.current`; a separate effect syncs the `gameState` prop into the ref. QUIZZES.md task 5.3 Q2.
+
+---
+
 ## Vocabulary cheat-sheet (one line each)
 
 - **N+1 query problem** — 1 query for N parents + 1 per parent on lazy relationship access = N+1; fix with eager loading.
@@ -114,6 +124,7 @@ Stateless workers scale horizontally — run 10, each pulls different jobs off t
 - **Bounded timeouts on connection-failure tests** — a "dependency is down → we raise" test must set a short connect/read timeout, or its latency is at the mercy of the OS connect timeout (RST = instant, DROP = hang/flake).
 - **One image, many roles** — one container image for the whole app; run API/worker/scheduler from it varying only the `command:`, not a separate image per role. Build/version/promote one byte-identical artifact.
 - **Singleton scheduler** — stateless workers replicate safely (each consumes different jobs); a scheduler *emits* on a timer, so >1 instance = duplicate dispatch. Keep Beat/cron a singleton (one replica or leader lock).
+- **Decouple rendering from state** — the draw loop (rAF) reads the *current* state each frame; a state update is just "new data," not "draw now." Read cadence ≠ write cadence (60 Hz refresh vs bursty turns). In React: rAF reads a `ref`, a tiny effect syncs prop→ref — don't repaint per change or close over a stale prop.
 
 ---
 
