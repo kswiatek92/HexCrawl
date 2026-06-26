@@ -1,0 +1,18 @@
+# Keep the build context small: the daemon only needs the dependency manifests
+# and src/ (see Dockerfile). Everything below is either rebuilt inside the image,
+# host-specific, or irrelevant to the worker/beat runtime.
+.venv
+.git
+.github
+frontend
+tests
+alembic
+docs
+assets
+__pycache__
+*.pyc
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.env
+*.md

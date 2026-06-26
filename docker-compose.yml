@@ -1,5 +1,21 @@
-# Local development backing services. App/uvicorn + Celery run on the host via `uv`.
+# Local development stack: backing services (postgres, redis) plus the Celery
+# worker and Beat scheduler. The FastAPI app/uvicorn still runs on the host via
+# `uv` (CLAUDE.md → Local dev setup); the async workers run as containers here.
 # Dev-only credentials — never reuse in any deployed environment.
+
+# Shared config for the Celery processes. Both `worker` and `beat` build and run
+# the SAME image (Dockerfile at repo root) and differ only by command — build
+# once, run many roles. `image:` tags that single build so the second service
+# reuses it instead of rebuilding.
+x-celery-base: &celery-base
+  build: .
+  image: hexcrawl:dev
+  environment: &celery-env
+    JWT_SECRET: ${JWT_SECRET:-dev-insecure-secret}    # required by Settings() at import; override via shell/.env, dev fallback
+    CELERY_BROKER_URL: redis://redis:6379/1
+    CELERY_RESULT_BACKEND: redis://redis:6379/2
+  restart: unless-stopped
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -29,6 +45,33 @@ services:
       timeout: 3s
       retries: 5
     restart: unless-stopped
+
+  # Celery worker — consumes tasks from the broker. score_recalc + the weekly
+  # reset hit Postgres; map_generation writes the Redis cache — hence both
+  # DATABASE_URL and REDIS_URL point at the compose service names (not localhost).
+  worker:
+    <<: *celery-base
+    environment:
+      <<: *celery-env
+      DATABASE_URL: postgresql+asyncpg://hexcrawl:hexcrawl@postgres:5432/hexcrawl
+      REDIS_URL: redis://redis:6379/0
+    command: celery -A src.adapters.tasks.celery_app worker --loglevel=info
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # Celery Beat — the periodic-task scheduler (weekly leaderboard reset, Mon
+  # 00:00 UTC). It only *publishes* due tasks to the broker, so it needs Redis
+  # but no database. MUST stay a singleton: two Beat instances on one schedule
+  # dispatch every job twice. Never run more than one — do not `--scale beat`.
+  beat:
+    <<: *celery-base
+    command: celery -A src.adapters.tasks.celery_app beat --loglevel=info
+    depends_on:
+      redis:
+        condition: service_healthy
 
 volumes:
   pgdata:

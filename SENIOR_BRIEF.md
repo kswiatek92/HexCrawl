@@ -84,6 +84,22 @@ A test that asserts "the dependency is down → we raise" must build its client 
 
 ---
 
+## 4 — Deployment & Operations
+
+### One image, many roles (single artifact, command-per-process)
+Build **one** container image holding the whole app + deps, then run each process role (API, worker, scheduler) from that *same* image, varying only the **command** — not a separate image per role.
+**Why it matters:** build/scan/version/promote one artifact instead of N that can silently drift; the role you ran in CI is byte-identical to the one in prod. Per-role images mean a dependency or code fix must be rebuilt and re-deployed in lockstep across all of them, and "works in the worker, breaks in the API" becomes possible.
+**Code-review tell:** multiple Dockerfiles installing the same deps for worker vs API; or a Compose/k8s spec where role services carry different `image:` tags built from the same source. The fix is one image + a per-service `command:`/`entrypoint`.
+**Reference:** HexCrawl `Dockerfile` (no `CMD`) with `worker`/`beat` Compose services differing only by command (task 4.6); twelve-factor §"build, release, run".
+
+### Singleton scheduler (the clock must not be replicated)
+Stateless workers scale horizontally — run 10, each pulls different jobs off the broker, throughput rises. A **scheduler** (Celery Beat, a cron sidecar) is the opposite: it *emits* due jobs on a timer, so two instances on one schedule each emit every job → **duplicate dispatch**. It must be a singleton (one replica, or a leader lock).
+**Why it matters:** scaling the wrong process is a silent correctness bug, not a perf win — `--scale beat=3` fires the weekly reset three times. The asymmetry (workers consume → safe to replicate; scheduler produces on a timer → must not) is the thing to internalise.
+**Code-review tell:** a scheduler/Beat/cron service with `replicas > 1`, in an autoscaling group, or lacking a comment forbidding scale-up; idempotency on the *task* is a backstop, not a substitute for one clock.
+**Reference:** HexCrawl `beat` Compose service kept singleton with an explicit do-not-scale comment (task 4.6); QUIZZES.md task 4.5 Q2.
+
+---
+
 ## Vocabulary cheat-sheet (one line each)
 
 - **N+1 query problem** — 1 query for N parents + 1 per parent on lazy relationship access = N+1; fix with eager loading.
@@ -96,6 +112,8 @@ A test that asserts "the dependency is down → we raise" must build its client 
 - **Stateless resource server (verify-only auth)** — API holds no session and never sees credentials; IdP issues a signed token, API only verifies it (401 at the edge) and checks ownership by resource (403). No password leak surface, free horizontal scaling.
 - **403 vs 404 info-leak trade-off** — 403 "exists but not yours" confirms existence; 404-for-both hides it. Safe to use 403 with unguessable (UUIDv4) ids; prefer 404-for-both when ids are enumerable or existence is sensitive.
 - **Bounded timeouts on connection-failure tests** — a "dependency is down → we raise" test must set a short connect/read timeout, or its latency is at the mercy of the OS connect timeout (RST = instant, DROP = hang/flake).
+- **One image, many roles** — one container image for the whole app; run API/worker/scheduler from it varying only the `command:`, not a separate image per role. Build/version/promote one byte-identical artifact.
+- **Singleton scheduler** — stateless workers replicate safely (each consumes different jobs); a scheduler *emits* on a timer, so >1 instance = duplicate dispatch. Keep Beat/cron a singleton (one replica or leader lock).
 
 ---
 
