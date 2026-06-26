@@ -154,7 +154,7 @@ Weeks/dates below are **remaining work projected from 2026-06-08** at 10 h/week.
 |---|------|--------|------|-----|-------|
 | 5.1 | Vite + React setup | ✅ | ⬜ | K | Zustand + Tailwind v4 + React Router; `/api`+`/ws` dev proxy |
 | 5.2 | Design 16×16 pixel tile set | ✅ | ⬜ | K | 🎨 **floor-layout tiles** — wall/floor/stairs/door; GBA-style 4-colour palette; hand-authored via `assets/tools/gen_tiles.py`, seamless, palette-pure |
-| 5.3 | Canvas renderer | 🔄 | ⬜ | K | 🎨 consumes the 5.2 tile set; draws Floor grid from game state JSON |
+| 5.3 | Canvas renderer | ✅ | ⬜ | K | 🎨 consumes the 5.2 tile set; draws Floor grid from game state JSON |
 | 5.4 | Player sprite + movement animation | 🔲 | ⬜ | K | 🎨 **player sprite** (+ idle/move frames) |
 | 5.5 | Enemy sprites (3 types minimum) | 🔲 | ⬜ | K | 🎨 **enemy sprites** — melee / ranged / boss |
 | 5.5a | Item sprites (per `ItemType`) | 🔲 | ⬜ | K | 🎨 **item sprites** — potion / weapon / etc.; render on floor grid + HUD inventory (`ItemType` enum, 1.4) |
