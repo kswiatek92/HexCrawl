@@ -1,10 +1,10 @@
 # HexCrawl — Sprite assets
 
-Pixel-art sprites for the Phase 5 frontend. **All are AI-generated drafts** (local CPU
-ComfyUI + SD1.5 pixel checkpoint), downscaled and quantized to the shared 4-colour Game
-Boy palette ([`docs/palettes/gameboy-4.gpl`](../docs/palettes/gameboy-4.gpl)). Treat them
-as placeholders good enough to build and test the renderer against — polish or replace
-before v1.
+Pixel-art sprites for the Phase 5 frontend. The player/enemy/item sprites are **AI-generated
+drafts** (local CPU ComfyUI + SD1.5 pixel checkpoint); the **`tiles/` are hand-authored** by
+[`tools/gen_tiles.py`](tools/gen_tiles.py). Everything sits in the shared 4-colour Game Boy
+palette ([`docs/palettes/gameboy-4.gpl`](../docs/palettes/gameboy-4.gpl)). Treat the AI drafts
+as placeholders good enough to build and test the renderer against — polish or replace before v1.
 
 ## Layout (named by domain enum)
 
@@ -16,7 +16,7 @@ assets/sprites/
 ├── player/player.png              # the hero (32×32)
 ├── enemies/{melee,ranged,boss}.png   # BehaviourType (32×32; boss 48×48)
 ├── items/{weapon,armor,shield,potion,key}.png   # ItemType (32×32)
-└── tiles/{wall,floor,door}.png    # TileType (16×16)   — STAIRS missing, see below
+└── tiles/{wall,floor,stairs,door}.png   # TileType (16×16) — hand-authored, see below
 ```
 
 [`manifest.json`](manifest.json) maps every enum → sprite path, pixel size, and a
@@ -35,12 +35,12 @@ Load it in the frontend instead of hard-coding paths.
 
 ## Known gaps / TODO
 
-- **`tiles/stairs.png` — missing.** SD1.5 can't generate a staircase tile; hand-draw it
-  in Aseprite (a few diagonal steps on a 16×16 grid). `STAIRS.status = "todo"` in the manifest.
-- **`rough` assets** (skeleton/ranged, armor, door) read acceptably but aren't ideal —
-  redraw or re-roll when you have time.
-- **Tiles not verified seamless** — `wall`/`floor` are textures, not guaranteed to tile
-  edge-to-edge; fix the edges in Aseprite if seams show in the renderer.
+- **Tiles are hand-authored, not AI** (task 5.2). `wall/floor/stairs/door.png` are produced by
+  [`tools/gen_tiles.py`](tools/gen_tiles.py) — palette-pure and seamless by construction
+  (`wall`/`floor` tile edge-to-edge; covered by `tests/unit/assets/test_tile_set.py`). Re-tune by
+  editing the pixel grids in that script and re-running `python assets/tools/gen_tiles.py`.
+- **`rough` assets** (skeleton/ranged, armor) read acceptably but aren't ideal — redraw or
+  re-roll when you have time.
 
 ## Regenerating
 
