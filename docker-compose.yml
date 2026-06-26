@@ -11,7 +11,7 @@ x-celery-base: &celery-base
   build: .
   image: hexcrawl:dev
   environment: &celery-env
-    JWT_SECRET: dev-insecure-secret    # required by Settings() at import time; dev-only
+    JWT_SECRET: ${JWT_SECRET:-dev-insecure-secret}    # required by Settings() at import; override via shell/.env, dev fallback
     CELERY_BROKER_URL: redis://redis:6379/1
     CELERY_RESULT_BACKEND: redis://redis:6379/2
   restart: unless-stopped
