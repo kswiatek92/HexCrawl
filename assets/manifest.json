@@ -1,5 +1,5 @@
 {
-  "_comment": "Sprite manifest for the Phase 5 renderer. Keys mirror the domain enums (BehaviourType / ItemType / TileType) so the canvas can index a sprite directly from the value it receives over the WebSocket. Paths are repo-root-relative. 'status': draft=usable, rough=reads ok but worth redrawing, todo=missing. All sprites are AI-generated drafts quantized to docs/palettes/gameboy-4.gpl.",
+  "_comment": "Sprite manifest for the Phase 5 renderer. Keys mirror the domain enums (BehaviourType / ItemType / TileType) so the canvas can index a sprite directly from the value it receives over the WebSocket. Paths are repo-root-relative. 'status': draft=usable, rough=reads ok but worth redrawing, todo=missing. Player/enemy/item sprites are AI-generated drafts quantized to docs/palettes/gameboy-4.gpl; the TileType tiles are hand-authored (palette-pure, seamless) by assets/tools/gen_tiles.py.",
   "palette": "docs/palettes/gameboy-4.gpl",
   "player": { "sprite": "assets/sprites/player/player.png", "size": 32, "status": "draft", "source": "knight" },
   "enemies": {
@@ -15,9 +15,9 @@
     "KEY":    { "sprite": "assets/sprites/items/key.png",    "size": 32, "status": "draft", "source": "golden key" }
   },
   "tiles": {
-    "WALL":   { "sprite": "assets/sprites/tiles/wall.png",  "size": 16, "status": "draft", "source": "stone brick (not verified seamless)" },
-    "FLOOR":  { "sprite": "assets/sprites/tiles/floor.png", "size": 16, "status": "draft", "source": "cobblestone (not verified seamless)" },
-    "DOOR":   { "sprite": "assets/sprites/tiles/door.png",  "size": 16, "status": "rough", "source": "wooden door archway" },
-    "STAIRS": { "sprite": null, "size": 16, "status": "todo", "source": "hand-draw — SD1.5 cannot produce a staircase tile" }
+    "WALL":   { "sprite": "assets/sprites/tiles/wall.png",   "size": 16, "status": "draft", "source": "hand-authored running-bond brick (seamless, gen_tiles.py)" },
+    "FLOOR":  { "sprite": "assets/sprites/tiles/floor.png",  "size": 16, "status": "draft", "source": "hand-authored low-contrast cobble (seamless, gen_tiles.py)" },
+    "DOOR":   { "sprite": "assets/sprites/tiles/door.png",   "size": 16, "status": "draft", "source": "hand-authored planked door (gen_tiles.py)" },
+    "STAIRS": { "sprite": "assets/sprites/tiles/stairs.png", "size": 16, "status": "draft", "source": "hand-authored descending staircase (gen_tiles.py)" }
   }
 }

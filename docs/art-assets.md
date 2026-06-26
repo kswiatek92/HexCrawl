@@ -51,16 +51,19 @@ batch so the set stays coherent. Use `16bitscene` (not `pixelsprite`) for tiles.
 
 ## 4. Tiles — BOARD 5.2  (16×16, MUST be seamless/tileable)
 
-> ⚠️ **Hand-draw these in Aseprite.** AI fights hardest here: 16×16 + 4 colours + seamless
-> edges is exactly where text-to-image fails. Use AI output only as a colour/shape reference,
-> then redraw on a 16×16 grid. Use the `16bitscene` trigger if you do generate references.
+> ✅ **Done (task 5.2) — hand-authored as code, not generated.** AI fights hardest here
+> (16×16 + 4 colours + seamless edges is exactly where text-to-image fails), so the tiles are
+> drawn pixel-by-pixel in [`../assets/tools/gen_tiles.py`](../assets/tools/gen_tiles.py): each is a
+> 16×16 grid of palette indices encoded to PNG with stdlib only. `WALL`/`FLOOR` tile seamlessly by
+> construction; the set is verified by `tests/unit/assets/test_tile_set.py`. Regenerate with
+> `python assets/tools/gen_tiles.py`. The reference subjects below are kept for context only.
 
-| `TileType` | Reference subject (optional) | Notes |
+| `TileType` | Reference subject (kept for context) | Notes |
 |------------|------------------------------|-------|
-| WALL | `16bitscene, seamless dungeon stone brick wall texture` | Must tile on all edges |
-| FLOOR | `16bitscene, seamless dungeon stone floor texture` | Must tile; keep low-contrast so sprites read on top |
+| WALL | `16bitscene, seamless dungeon stone brick wall texture` | Running-bond brick, period-8 → tiles on all edges |
+| FLOOR | `16bitscene, seamless dungeon stone floor texture` | Low-contrast cobble; uniform border → seamless |
 | STAIRS | `16bitscene, stone staircase descending, top-down` | Single tile, the descend target |
-| DOOR | `16bitscene, closed wooden dungeon door` | Consider open + closed variants |
+| DOOR | `16bitscene, closed wooden dungeon door` | Closed planked door; open variant deferred |
 
 ---
 
