@@ -9,8 +9,9 @@ through the :class:`IScoreRecalcQueue` port
 (``src/domain/ports/score_recalc_queue.py``); the Celery *producer* that conforms
 to that port is a separate adapter built in task 4.2. This module stands up the app
 and lists task modules for worker discovery (``include``); the tasks themselves
-live in their own modules (``score_recalc.py`` lands with 4.2). No Beat schedule
-yet (task 4.5).
+live in their own modules (``score_recalc.py`` lands with 4.2). It also owns the
+**Beat schedule** (task 4.5): the single periodic entry below dispatches
+``weekly_leaderboard_reset`` (4.4) at Monday 00:00 UTC.
 
 Design, pinned to ``QUIZZES.md`` task 4.1:
 
@@ -50,6 +51,7 @@ Design, pinned to ``QUIZZES.md`` task 4.1:
 
 import structlog
 from celery import Celery
+from celery.schedules import crontab
 from celery.signals import task_failure
 
 from src.config import Settings
@@ -81,6 +83,20 @@ app.conf.update(
     accept_content=["json"],
     timezone="UTC",
     enable_utc=True,
+    # Beat schedule (task 4.5). The single periodic job is the weekly leaderboard
+    # reset — Beat dispatches `weekly_leaderboard_reset` (4.4) at Monday 00:00 UTC.
+    # The entry references the task by its registered *wire name* (a string), not
+    # by importing the task function: that keeps `celery_app` free of a task-module
+    # import and lets Beat resolve the task through the same registry the worker
+    # uses. The `00:00` is unambiguous because the clock above is pinned to UTC.
+    # Defined as a static config dict (not an `on_after_configure` signal) because
+    # the schedule is fixed at app-build time — nothing here is computed at runtime.
+    beat_schedule={
+        "weekly-leaderboard-reset": {
+            "task": "weekly_leaderboard_reset",
+            "schedule": crontab(minute=0, hour=0, day_of_week="mon"),
+        },
+    },
 )
 
 
