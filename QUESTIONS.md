@@ -108,9 +108,9 @@ Rules:
 
 ## Phase 5 — React frontend
 
-- [ ] State management — Zustand, Redux Toolkit, or plain context + hooks? (task 5.1)
-- [ ] Styling — Tailwind, CSS Modules, or vanilla CSS? (task 5.1)
-- [ ] Router — React Router, TanStack Router, or no router (single-page)? (task 5.1)
+- [x] State management — Zustand, Redux Toolkit, or plain context + hooks? (task 5.1) → **Zustand.** Lightweight selector-based store with near-zero boilerplate — the right size for a small frontend whose main state arrives over the WS turn loop. Selector subscriptions avoid re-rendering every consumer on each turn-update (the trap with plain context); Redux Toolkit is overkill for this state surface.
+- [x] Styling — Tailwind, CSS Modules, or vanilla CSS? (task 5.1) → **Tailwind.** Fastest path to build the HUD / leaderboard / auth chrome; the pixel canvas is drawn imperatively, so styling only covers the surrounding UI. Conventional, strong portfolio signal.
+- [x] Router — React Router, TanStack Router, or no router (single-page)? (task 5.1) → **React Router.** Genuinely distinct views worth real URLs (`/`, `/leaderboard`, `/login`). Mature standard; TanStack Router's extra type-safety machinery isn't justified at this scale, and "no router" would force hand-rolled view switching.
 - [ ] Canvas target resolution — 240×160 (GBA-native) scaled up, or device-native? (task 5.3)
 - [ ] Exact 4-colour palette hex values — pick now or iterate? (task 5.2)
 - [ ] Sprite source — hand-author, generate, or use an open tileset? (tasks 5.2, 5.4, 5.5)
