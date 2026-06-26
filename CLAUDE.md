@@ -276,6 +276,11 @@ uv run celery -A src.adapters.tasks.celery_app worker --loglevel=info
 uv run celery -A src.adapters.tasks.celery_app beat --loglevel=info
 ```
 
+> Steps 6–7 run the workers on the host. Alternatively run them as containers:
+> `docker compose up worker beat` — both build from the shared root `Dockerfile`
+> (one image, command-per-role). **Beat must stay a singleton** — never scale it,
+> or every scheduled job dispatches twice.
+
 ### Key env vars (copy `.env.example` → `.env`)
 
 ```
