@@ -1,0 +1,19 @@
+# Dependencies
+node_modules
+
+# Build output
+dist
+
+# Test / coverage artefacts
+coverage
+
+# Local env files
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+
+# Editors / OS
+.DS_Store

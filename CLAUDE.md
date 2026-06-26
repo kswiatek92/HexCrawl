@@ -223,11 +223,23 @@ modules otherwise.
 - **Migrations:** `uv run alembic upgrade head`, `uv run alembic check` in CI if available.
 
 ### Frontend toolchain
-- **Package manager:** `pnpm` (version 9). Lockfile: `frontend/pnpm-lock.yaml`.
-- **Lint:** `pnpm lint` (ESLint).
+- **Package manager:** `pnpm` (version 9). Lockfile: `frontend/pnpm-lock.yaml`. CI installs
+  `--frozen-lockfile`, so the lockfile must be generated with pnpm 9 (`packageManager` pins it);
+  if your local pnpm is newer, regenerate via `corepack pnpm@9 …` or `npx pnpm@9 …`.
+- **Stack** (decided in QUESTIONS.md task 5.1): **Zustand** (state — selector-based store in
+  `src/store/`), **Tailwind CSS v4** (styling — via the `@tailwindcss/vite` plugin, CSS-first
+  `@import "tailwindcss"`, **no `tailwind.config.js`/`postcss.config.js`**), **React Router**
+  (`createBrowserRouter`; export the `routes` array so tests can drive a `createMemoryRouter`).
+- **Dev proxy:** `vite.config.ts` proxies `/api` and `/ws` (`ws: true`) to the backend
+  (default `http://localhost:8000`, `VITE_API_PROXY_TARGET` override) so the browser stays
+  single-origin in dev — sidesteps CORS/cookie issues. Frontend↔backend calls go through these
+  prefixes, never a hard-coded backend origin.
+- **TypeScript:** a single root `tsconfig.json` with `noEmit` (not the multi-project-reference
+  template) so `pnpm tsc --noEmit` actually type-checks `src/`.
+- **Lint:** `pnpm lint` (ESLint, flat config `eslint.config.js`).
 - **Format:** `pnpm exec prettier --check .`
 - **Types:** `pnpm tsc --noEmit`.
-- **Tests:** `pnpm test -- --run --coverage` (Vitest).
+- **Tests:** `pnpm test -- --run --coverage` (Vitest + Testing Library, jsdom).
 - **Build:** `pnpm build` (Vite).
 
 ### GitHub Actions pipelines
