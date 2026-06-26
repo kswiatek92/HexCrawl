@@ -53,11 +53,17 @@ export default function GameCanvas({ gameState }: GameCanvasProps) {
     };
 
     // Tiles must all be decoded before the first paint; start the loop once.
-    void loadTileImages().then((loaded) => {
-      if (cancelled) return;
-      images = loaded;
-      frame = requestAnimationFrame(loop);
-    });
+    loadTileImages()
+      .then((loaded) => {
+        if (cancelled) return;
+        images = loaded;
+        frame = requestAnimationFrame(loop);
+      })
+      .catch((error: unknown) => {
+        // A failed tile decode (bad bundle path, transient cache miss) must not
+        // become an unhandled rejection that silently leaves the loop unstarted.
+        if (!cancelled) console.error("Failed to load tile sprites", error);
+      });
 
     return () => {
       cancelled = true;
@@ -70,6 +76,8 @@ export default function GameCanvas({ gameState }: GameCanvasProps) {
       ref={canvasRef}
       width={BACKING_WIDTH}
       height={BACKING_HEIGHT}
+      // Fixed integer ×SCALE (720×480) for crisp pixels. Responsive
+      // largest-fit scaling is deferred to the HUD/layout pass (task 5.8).
       style={{
         width: BACKING_WIDTH * SCALE,
         height: BACKING_HEIGHT * SCALE,

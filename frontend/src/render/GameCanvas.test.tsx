@@ -96,4 +96,24 @@ describe("GameCanvas render loop", () => {
     unmount();
     expect(cancel).toHaveBeenCalled();
   });
+
+  it("logs and never starts the loop when tile loading fails", async () => {
+    const { frames } = installFakes();
+    // Override Image so the src setter fails the load instead of resolving it.
+    class FailingImage {
+      onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      set src(_value: string) {
+        queueMicrotask(() => this.onerror?.());
+      }
+    }
+    vi.stubGlobal("Image", FailingImage);
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    render(<GameCanvas gameState={STATE} />);
+    await flush();
+
+    expect(errorSpy).toHaveBeenCalled(); // rejection handled, not swallowed
+    expect(frames).toHaveLength(0); // loop never scheduled a frame
+  });
 });
