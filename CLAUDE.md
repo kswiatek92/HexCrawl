@@ -244,8 +244,17 @@ modules otherwise.
   16px) integer-scaled with `image-rendering: pixelated`, and a **player-following camera**
   (the 80×50 floor far exceeds the window). The loop reads the latest state from a ref so the
   draw cadence (rAF) is decoupled from the update cadence (turns/props). New sprite layers
-  (player 5.4, enemies 5.5, items 5.5a) extend `drawFloor` over the same camera. Tiles are
-  bundled copies under `src/assets/tiles/`; the source of truth is `assets/tools/gen_tiles.py`.
+  (player 5.4, enemies 5.5, items 5.5a) extend `drawFloor` over the same camera — each blits
+  **after** the floor (painter's order), at one tile (16px, smaller authored sprites scaled to
+  the cell with `ctx.imageSmoothingEnabled = false` for a crisp nearest-neighbour downscale),
+  using `playerScreenPosition`-style pure camera math (`camera.ts`). Tiles are bundled copies
+  under `src/assets/tiles/`; the source of truth is `assets/tools/gen_tiles.py`. Character/item
+  sprites are bundled copies under `src/assets/sprites/`, **colour-keyed to a transparent
+  background** from the opaque AI drafts (`assets/sprites/`) by `assets/tools/key_sprites.py`
+  (stdlib-only, flood-fills the border-connected background colour to alpha) — re-run it to
+  re-bake if a draft changes. Per-frame **animation state** (frame index, last-frame time)
+  lives in a `useRef` in `GameCanvas` (never `useState` — it must not trigger a re-render,
+  QUIZZES.md 5.4); the frame→offset math is pure (`playerAnimation.ts`).
   Wire-shape types mirror `src/entrypoints/http/schemas.py` in `frontend/src/types/gameState.ts`.
 - **Lint:** `pnpm lint` (ESLint, flat config `eslint.config.js`).
 - **Format:** `pnpm exec prettier --check .`
