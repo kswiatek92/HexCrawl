@@ -19,6 +19,7 @@ import { BACKING_HEIGHT, BACKING_WIDTH, SCALE } from "./camera";
 import { drawFloor } from "./drawFloor";
 import { loadTileImages, type TileImages } from "./tileSet";
 import { loadPlayerSprite } from "./playerSprite";
+import { loadEnemySprites, type EnemySprites } from "./enemySprites";
 import {
   PLAYER_FRAME_COUNT,
   PLAYER_FRAME_DURATION_MS,
@@ -62,9 +63,16 @@ export default function GameCanvas({ gameState }: GameCanvasProps) {
     let cancelled = false;
     let tiles: TileImages | null = null;
     let playerSprite: HTMLImageElement | null = null;
+    let enemySprites: EnemySprites | null = null;
 
     const loop = (timestamp: number) => {
-      if (cancelled || tiles === null || playerSprite === null) return;
+      if (
+        cancelled ||
+        tiles === null ||
+        playerSprite === null ||
+        enemySprites === null
+      )
+        return;
       const anim = animRef.current;
       // Seed the clock on the first frame so the bob starts at rest — the rAF
       // timestamp is ms-since-page-load, so comparing against 0 would advance
@@ -79,17 +87,25 @@ export default function GameCanvas({ gameState }: GameCanvasProps) {
         anim.frame = (anim.frame + steps) % PLAYER_FRAME_COUNT;
         anim.lastFrameTime += steps * PLAYER_FRAME_DURATION_MS;
       }
-      drawFloor(ctx, stateRef.current, tiles, playerSprite, anim.frame);
+      drawFloor(
+        ctx,
+        stateRef.current,
+        tiles,
+        playerSprite,
+        enemySprites,
+        anim.frame,
+      );
       rafId = requestAnimationFrame(loop);
     };
 
     // Every sprite must be decoded before the first paint (a half-loaded set would
-    // draw gaps); start the loop once both the tiles and the player are ready.
-    Promise.all([loadTileImages(), loadPlayerSprite()])
-      .then(([loadedTiles, loadedPlayer]) => {
+    // draw gaps); start the loop once the tiles, player, and enemies are all ready.
+    Promise.all([loadTileImages(), loadPlayerSprite(), loadEnemySprites()])
+      .then(([loadedTiles, loadedPlayer, loadedEnemies]) => {
         if (cancelled) return;
         tiles = loadedTiles;
         playerSprite = loadedPlayer;
+        enemySprites = loadedEnemies;
         rafId = requestAnimationFrame(loop);
       })
       .catch((error: unknown) => {

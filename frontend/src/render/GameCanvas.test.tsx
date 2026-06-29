@@ -36,6 +36,7 @@ describe("GameCanvas render loop", () => {
       width: 1,
       height: 1,
       tiles: [["FLOOR"] as TileType[]],
+      enemies: [{ position: [0, 0], behaviour: "MELEE" }],
       stairs_down: [0, 0],
     },
   };
@@ -87,7 +88,8 @@ describe("GameCanvas render loop", () => {
 
     frames[frames.length - 1](0); // run one frame
     expect(fillRect).toHaveBeenCalledWith(0, 0, 240, 160); // backdrop cleared
-    expect(drawImage).toHaveBeenCalledTimes(2); // the single FLOOR tile + the player
+    // the single FLOOR tile + the on-screen enemy + the player
+    expect(drawImage).toHaveBeenCalledTimes(3);
   });
 
   it("advances the idle bob frame after the frame duration elapses", async () => {

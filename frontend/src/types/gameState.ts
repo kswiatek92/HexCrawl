@@ -17,6 +17,9 @@
 /** The four `TileType` enum values, as their wire strings (StrEnum). */
 export type TileType = "WALL" | "FLOOR" | "STAIRS" | "DOOR";
 
+/** The three `BehaviourType` enum values, as their wire strings (StrEnum). */
+export type BehaviourType = "MELEE" | "RANGED" | "BOSS";
+
 /** A position on the floor grid, `[x, y]`. */
 export type Position = readonly [number, number];
 
@@ -24,11 +27,22 @@ export interface PlayerView {
   position: Position;
 }
 
+/**
+ * An enemy on the current floor — the subset the renderer paints. `behaviour`
+ * selects the sprite (task 5.5); HP / stats arrive when the HUD lands (5.8).
+ */
+export interface EnemyView {
+  position: Position;
+  behaviour: BehaviourType;
+}
+
 export interface FloorView {
   width: number;
   height: number;
   /** Row-major grid: `tiles[y][x]`. */
   tiles: TileType[][];
+  /** Enemies on this floor (mirrors backend `FloorState.enemies`). */
+  enemies: EnemyView[];
   stairs_down: Position;
 }
 

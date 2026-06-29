@@ -247,7 +247,10 @@ modules otherwise.
   (player 5.4, enemies 5.5, items 5.5a) extend `drawFloor` over the same camera — each blits
   **after** the floor (painter's order), at one tile (16px, smaller authored sprites scaled to
   the cell with `ctx.imageSmoothingEnabled = false` for a crisp nearest-neighbour downscale),
-  using `playerScreenPosition`-style pure camera math (`camera.ts`). Tiles are bundled copies
+  using pure camera math (`camera.ts`): `worldToScreen` for tile→pixel placement
+  (`playerScreenPosition` delegates to it). Unlike the player (always on-screen — the camera
+  centres on it), sprites that can sit anywhere on the floor (enemies, items) are **culled
+  off-viewport** with `isWithinViewport` before blitting. Tiles are bundled copies
   under `src/assets/tiles/`; the source of truth is `assets/tools/gen_tiles.py`. Character/item
   sprites are bundled copies under `src/assets/sprites/`, **colour-keyed to a transparent
   background** from the opaque AI drafts (`assets/sprites/`) by `assets/tools/key_sprites.py`
