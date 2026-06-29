@@ -267,6 +267,13 @@ modules otherwise.
   from where the socket is mounted, and returns an imperative `sendAction` for the keyboard
   handler (5.7). The client wire-protocol types (`ClientAction`/`ServerFrame`) mirror
   `src/entrypoints/ws/protocol.py` in `frontend/src/types/socket.ts` — keep them in lockstep.
+  The **keyboard input handler** (task 5.7) lives in `frontend/src/input/`: pure `keyToAction`
+  (the WASD/arrows→`move` + space→`wait` binding table — bump-to-attack means the four cardinals
+  cover combat, so no separate attack/descend/pickup keys) sits beside the `useKeyboardInput`
+  hook, which owns a `window` `keydown` listener (drops OS key-repeat, ignores editable targets,
+  `preventDefault`s bound keys) and reads `sendAction` through a ref so it never re-binds.
+  `GameScreen` mounts both halves (`useGameSocket` + `useKeyboardInput`); the path is dormant
+  until start-game + auth (5.11/5.12) supply the socket's `sessionId`/`token`.
 - **Lint:** `pnpm lint` (ESLint, flat config `eslint.config.js`).
 - **Format:** `pnpm exec prettier --check .`
 - **Types:** `pnpm tsc --noEmit`.
