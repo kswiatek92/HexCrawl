@@ -159,7 +159,7 @@ Weeks/dates below are **remaining work projected from 2026-06-08** at 10 h/week.
 | 5.5 | Enemy sprites (3 types minimum) | ✅ | ⬜ | K | 🎨 **enemy sprites** — melee / ranged / boss |
 | 5.5a | Item sprites (per `ItemType`) | ✅ | ⬜ | K | 🎨 **item sprites** — potion / weapon / etc.; render on floor grid + HUD inventory (`ItemType` enum, 1.4) |
 | 5.6 | `useGameSocket` hook | ✅ | ⬜ | K | Sends actions, receives state |
-| 5.7 | Keyboard input handler | 🔲 | ⬜ | K | WASD / arrows / space |
+| 5.7 | Keyboard input handler | 🔄 | ⬜ | K | WASD / arrows / space |
 | 5.8 | HUD (HP, floor, score, inventory) | 🔲 | ⬜ | K | 🎨 **HUD layout** (+ item icons in inventory — see gap below) |
 | 5.9 | Game over screen | 🔲 | ⬜ | K | 🎨 **screen layout** |
 | 5.10 | Leaderboard page (global + weekly tabs) | 🔲 | ⬜ | K | 🎨 **page layout** |
