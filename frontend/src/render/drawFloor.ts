@@ -12,13 +12,16 @@
 
 import type { GameStateView } from "../types/gameState";
 import type { TileImages } from "./tileSet";
+import type { EnemySprites } from "./enemySprites";
 import {
   BACKING_HEIGHT,
   BACKING_WIDTH,
   TILE_SIZE,
   computeCamera,
+  isWithinViewport,
   playerScreenPosition,
   visibleTiles,
+  worldToScreen,
 } from "./camera";
 import { bobOffsetForFrame } from "./playerAnimation";
 
@@ -32,14 +35,17 @@ export const BACKGROUND_COLOR = "#0F380F";
  * fills the border gap when the floor is smaller than the viewport. A `null`
  * state (no run yet — live data arrives in task 5.6) paints just the backdrop.
  *
- * The player is drawn last (on top of the floor) at its tile, scaled to one cell;
- * `frame` selects the idle-bob vertical offset so the loop can animate it.
+ * Enemies are drawn after the floor, each at its tile (one cell) and culled if
+ * off-screen — they can sit anywhere on the 80×50 floor. The player is drawn last
+ * (on top of floor and enemies) at its tile, scaled to one cell; `frame` selects the
+ * idle-bob vertical offset so the loop can animate it.
  */
 export function drawFloor(
   ctx: CanvasRenderingContext2D,
   gameState: GameStateView | null,
   images: TileImages,
   playerSprite: HTMLImageElement,
+  enemySprites: EnemySprites,
   frame: number,
 ): void {
   ctx.fillStyle = BACKGROUND_COLOR;
@@ -58,6 +64,12 @@ export function drawFloor(
       TILE_SIZE,
       TILE_SIZE,
     );
+  }
+
+  for (const enemy of floor.enemies) {
+    if (!isWithinViewport(camera, enemy.position)) continue;
+    const { x, y } = worldToScreen(camera, enemy.position);
+    ctx.drawImage(enemySprites[enemy.behaviour], x, y, TILE_SIZE, TILE_SIZE);
   }
 
   const { x, y } = playerScreenPosition(camera, player.position);

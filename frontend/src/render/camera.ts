@@ -112,20 +112,52 @@ export function visibleTiles(
 }
 
 /**
+ * Where a world tile lands in the backing buffer, given the camera.
+ *
+ * The generic tile→pixel transform: subtract the camera's top-left and scale to
+ * pixels. Sprites are drawn one tile wide, so this top-left is also where a sprite
+ * at that tile is blitted. May return an off-screen position for tiles outside the
+ * viewport — callers that draw arbitrary world positions (enemies) should gate on
+ * {@link isWithinViewport} first.
+ */
+export function worldToScreen(
+  camera: Camera,
+  position: Position,
+): ScreenPosition {
+  const [x, y] = position;
+  return {
+    x: (x - camera.x) * TILE_SIZE,
+    y: (y - camera.y) * TILE_SIZE,
+  };
+}
+
+/**
+ * Whether a world tile falls inside the 15×10 viewport window.
+ *
+ * The player is always on-screen (the camera centres on it), but enemies can sit
+ * anywhere on the 80×50 floor — far outside the window — so they must be culled
+ * before blitting. Bounds are half-open: `[camera, camera + viewport)`.
+ */
+export function isWithinViewport(camera: Camera, position: Position): boolean {
+  const [x, y] = position;
+  return (
+    x >= camera.x &&
+    x < camera.x + VIEWPORT_COLS &&
+    y >= camera.y &&
+    y < camera.y + VIEWPORT_ROWS
+  );
+}
+
+/**
  * Where the player's tile lands in the backing buffer, given the camera.
  *
  * The camera always centres on the player and clamps to the floor, so the player
  * stays inside the 15×10 window (drifting off-centre only near the floor edges) —
- * the result is always on-screen, no cull needed. Sprites are drawn one tile wide,
- * so this top-left is also where the player sprite is blitted.
+ * the result is always on-screen, no cull needed.
  */
 export function playerScreenPosition(
   camera: Camera,
   player: Position,
 ): ScreenPosition {
-  const [px, py] = player;
-  return {
-    x: (px - camera.x) * TILE_SIZE,
-    y: (py - camera.y) * TILE_SIZE,
-  };
+  return worldToScreen(camera, player);
 }
