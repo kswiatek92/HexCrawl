@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { GameStateView, TileType } from "../types/gameState";
 import type { TileImages } from "./tileSet";
+import type { EnemySprites } from "./enemySprites";
 import { BACKGROUND_COLOR, drawFloor } from "./drawFloor";
 
 interface DrawImageCall {
@@ -38,6 +39,13 @@ const IMAGES = {
 /** Sentinel player sprite — drawn last, identity is all that's checked. */
 const PLAYER = { id: "PLAYER" } as unknown as HTMLImageElement;
 
+/** Sentinel enemy sprites keyed by behaviour — identity is all that's checked. */
+const ENEMIES = {
+  MELEE: { id: "MELEE" },
+  RANGED: { id: "RANGED" },
+  BOSS: { id: "BOSS" },
+} as unknown as EnemySprites;
+
 // 3x2 floor (smaller than the viewport → camera pins to 0,0, all 6 cells shown).
 const TILES: TileType[][] = [
   ["WALL", "FLOOR", "DOOR"],
@@ -46,7 +54,13 @@ const TILES: TileType[][] = [
 
 const STATE: GameStateView = {
   player: { position: [1, 1] },
-  floor: { width: 3, height: 2, tiles: TILES, stairs_down: [1, 1] },
+  floor: {
+    width: 3,
+    height: 2,
+    tiles: TILES,
+    enemies: [],
+    stairs_down: [1, 1],
+  },
 };
 
 describe("drawFloor", () => {
@@ -57,6 +71,7 @@ describe("drawFloor", () => {
       STATE,
       IMAGES,
       PLAYER,
+      ENEMIES,
       0,
     );
     expect(ctx.fillStyle).toBe(BACKGROUND_COLOR);
@@ -70,6 +85,7 @@ describe("drawFloor", () => {
       STATE,
       IMAGES,
       PLAYER,
+      ENEMIES,
       0,
     );
 
@@ -93,6 +109,7 @@ describe("drawFloor", () => {
       STATE,
       IMAGES,
       PLAYER,
+      ENEMIES,
       1,
     );
     const player = drawImageCalls.at(-1);
@@ -114,11 +131,13 @@ describe("drawFloor", () => {
           width: 80,
           height: 50,
           tiles: bigTiles,
+          enemies: [],
           stairs_down: [40, 25],
         },
       },
       IMAGES,
       PLAYER,
+      ENEMIES,
       0,
     );
 
@@ -148,9 +167,79 @@ describe("drawFloor", () => {
       null,
       IMAGES,
       PLAYER,
+      ENEMIES,
       0,
     );
     expect(fillRectCalls).toEqual([[0, 0, 240, 160]]);
     expect(drawImageCalls).toEqual([]); // no tiles and, crucially, no player
+  });
+
+  it("blits each enemy at its tile, by behaviour, after tiles and before the player", () => {
+    // A melee enemy at (0,0) and a boss at (2,1) on the 3×2 floor (camera pinned 0,0).
+    const { ctx, drawImageCalls } = fakeContext();
+    drawFloor(
+      ctx as unknown as CanvasRenderingContext2D,
+      {
+        player: { position: [1, 1] },
+        floor: {
+          width: 3,
+          height: 2,
+          tiles: TILES,
+          enemies: [
+            { position: [0, 0], behaviour: "MELEE" },
+            { position: [2, 1], behaviour: "BOSS" },
+          ],
+          stairs_down: [1, 1],
+        },
+      },
+      IMAGES,
+      PLAYER,
+      ENEMIES,
+      0,
+    );
+
+    // 6 floor cells, then the two enemies in list order, then the player last.
+    const sprites = drawImageCalls.slice(6);
+    expect(sprites).toEqual([
+      { image: ENEMIES.MELEE, sx: 0, sy: 0, sw: 16, sh: 16 },
+      { image: ENEMIES.BOSS, sx: 2 * 16, sy: 1 * 16, sw: 16, sh: 16 },
+      { image: PLAYER, sx: 16, sy: 16, sw: 16, sh: 16 },
+    ]);
+  });
+
+  it("culls enemies outside the viewport", () => {
+    // 80×50 floor, player mid-map → camera (33,20), window covers x∈[33,48) y∈[20,30).
+    const bigTiles: TileType[][] = Array.from({ length: 50 }, () =>
+      Array.from({ length: 80 }, (): TileType => "FLOOR"),
+    );
+    const { ctx, drawImageCalls } = fakeContext();
+    drawFloor(
+      ctx as unknown as CanvasRenderingContext2D,
+      {
+        player: { position: [40, 25] },
+        floor: {
+          width: 80,
+          height: 50,
+          tiles: bigTiles,
+          enemies: [
+            { position: [41, 25], behaviour: "RANGED" }, // in view
+            { position: [0, 0], behaviour: "MELEE" }, // far off-screen
+          ],
+          stairs_down: [40, 25],
+        },
+      },
+      IMAGES,
+      PLAYER,
+      ENEMIES,
+      0,
+    );
+
+    const enemyBlits = drawImageCalls.filter(
+      (c) => c.image === ENEMIES.RANGED || c.image === ENEMIES.MELEE,
+    );
+    // Only the in-view ranged enemy is blitted; the off-screen melee is culled.
+    expect(enemyBlits).toEqual([
+      { image: ENEMIES.RANGED, sx: 8 * 16, sy: 5 * 16, sw: 16, sh: 16 },
+    ]);
   });
 });
