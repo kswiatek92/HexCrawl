@@ -93,6 +93,23 @@ describe("useKeyboardInput", () => {
     expect(event.defaultPrevented).toBe(false);
   });
 
+  it.each([
+    ["ctrlKey", { ctrlKey: true }],
+    ["metaKey", { metaKey: true }],
+    ["altKey", { altKey: true }],
+  ])(
+    "leaves a %s chord to the browser (no send, no preventDefault)",
+    (_label, mod) => {
+      const sendAction = vi.fn();
+      renderHook(() => useKeyboardInput(sendAction));
+
+      const event = pressKey("ArrowLeft", mod);
+
+      expect(sendAction).not.toHaveBeenCalled();
+      expect(event.defaultPrevented).toBe(false);
+    },
+  );
+
   it("drops OS key-repeat so a held key fires once", () => {
     const sendAction = vi.fn();
     renderHook(() => useKeyboardInput(sendAction));

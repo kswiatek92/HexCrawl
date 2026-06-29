@@ -12,9 +12,11 @@ export default function GameScreen() {
   // `useKeyboardInput` drives the loop the other way — WASD/arrows/space →
   // `sendAction`. Both are dormant for now: the socket needs a session id (from
   // start-game) and a JWT (from Supabase auth), both later in Phase 5, so with
-  // `null` params it never connects and keystrokes no-op until then.
+  // `null` params it never connects. The keyboard handler is gated on a live
+  // connection (`status === "open"`), so until then no listener is attached and
+  // keys pass straight through to the browser (no captured scroll, no no-op).
   const { sendAction } = useGameSocket({ sessionId: null, token: null });
-  useKeyboardInput(sendAction);
+  useKeyboardInput(sendAction, { enabled: status === "open" });
 
   return (
     <section className="space-y-2">

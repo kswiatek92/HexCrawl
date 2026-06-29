@@ -94,6 +94,10 @@ export function useKeyboardInput(
       // flood the socket with a turn per repeat tick.
       if (event.repeat) return;
       if (isEditableTarget(event.target)) return;
+      // Leave modifier chords to the browser/OS — Ctrl+W (close tab), Cmd+W,
+      // Alt+← (back) etc. must not be hijacked as movement or preventDefault'd.
+      // (Shift is left alone: it's not a standalone shortcut modifier.)
+      if (event.ctrlKey || event.metaKey || event.altKey) return;
 
       const action = keyToAction(event.key);
       if (action === null) return;
