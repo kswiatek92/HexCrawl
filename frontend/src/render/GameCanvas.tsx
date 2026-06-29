@@ -20,6 +20,7 @@ import { drawFloor } from "./drawFloor";
 import { loadTileImages, type TileImages } from "./tileSet";
 import { loadPlayerSprite } from "./playerSprite";
 import { loadEnemySprites, type EnemySprites } from "./enemySprites";
+import { loadItemSprites, type ItemSprites } from "./itemSprites";
 import {
   PLAYER_FRAME_COUNT,
   PLAYER_FRAME_DURATION_MS,
@@ -64,13 +65,15 @@ export default function GameCanvas({ gameState }: GameCanvasProps) {
     let tiles: TileImages | null = null;
     let playerSprite: HTMLImageElement | null = null;
     let enemySprites: EnemySprites | null = null;
+    let itemSprites: ItemSprites | null = null;
 
     const loop = (timestamp: number) => {
       if (
         cancelled ||
         tiles === null ||
         playerSprite === null ||
-        enemySprites === null
+        enemySprites === null ||
+        itemSprites === null
       )
         return;
       const anim = animRef.current;
@@ -93,19 +96,26 @@ export default function GameCanvas({ gameState }: GameCanvasProps) {
         tiles,
         playerSprite,
         enemySprites,
+        itemSprites,
         anim.frame,
       );
       rafId = requestAnimationFrame(loop);
     };
 
     // Every sprite must be decoded before the first paint (a half-loaded set would
-    // draw gaps); start the loop once the tiles, player, and enemies are all ready.
-    Promise.all([loadTileImages(), loadPlayerSprite(), loadEnemySprites()])
-      .then(([loadedTiles, loadedPlayer, loadedEnemies]) => {
+    // draw gaps); start the loop once tiles, player, enemies, and items are ready.
+    Promise.all([
+      loadTileImages(),
+      loadPlayerSprite(),
+      loadEnemySprites(),
+      loadItemSprites(),
+    ])
+      .then(([loadedTiles, loadedPlayer, loadedEnemies, loadedItems]) => {
         if (cancelled) return;
         tiles = loadedTiles;
         playerSprite = loadedPlayer;
         enemySprites = loadedEnemies;
+        itemSprites = loadedItems;
         rafId = requestAnimationFrame(loop);
       })
       .catch((error: unknown) => {

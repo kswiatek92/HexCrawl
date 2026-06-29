@@ -20,6 +20,9 @@ export type TileType = "WALL" | "FLOOR" | "STAIRS" | "DOOR";
 /** The three `BehaviourType` enum values, as their wire strings (StrEnum). */
 export type BehaviourType = "MELEE" | "RANGED" | "BOSS";
 
+/** The five `ItemType` enum values, as their wire strings (StrEnum). */
+export type ItemType = "WEAPON" | "ARMOR" | "SHIELD" | "POTION" | "KEY";
+
 /** A position on the floor grid, `[x, y]`. */
 export type Position = readonly [number, number];
 
@@ -36,6 +39,16 @@ export interface EnemyView {
   behaviour: BehaviourType;
 }
 
+/**
+ * A ground-item stack on the current floor — the subset the renderer paints.
+ * `item_type` selects the sprite (task 5.5a); its tile comes from the
+ * `FloorView.items` key, so no position field is needed here. Name / effect /
+ * count arrive when the HUD inventory lands (5.8).
+ */
+export interface ItemView {
+  item_type: ItemType;
+}
+
 export interface FloorView {
   width: number;
   height: number;
@@ -43,6 +56,12 @@ export interface FloorView {
   tiles: TileType[][];
   /** Enemies on this floor (mirrors backend `FloorState.enemies`). */
   enemies: EnemyView[];
+  /**
+   * Ground-item stacks keyed by `"x,y"` tile string — mirrors backend
+   * `FloorState.items` (`dict[str, list[ItemState]]`). JSON object keys are
+   * strings, hence the stringified position.
+   */
+  items: Record<string, ItemView[]>;
   stairs_down: Position;
 }
 

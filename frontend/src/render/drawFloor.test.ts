@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { GameStateView, TileType } from "../types/gameState";
 import type { TileImages } from "./tileSet";
 import type { EnemySprites } from "./enemySprites";
+import type { ItemSprites } from "./itemSprites";
 import { BACKGROUND_COLOR, drawFloor } from "./drawFloor";
 
 interface DrawImageCall {
@@ -46,6 +47,15 @@ const ENEMIES = {
   BOSS: { id: "BOSS" },
 } as unknown as EnemySprites;
 
+/** Sentinel item sprites keyed by item type — identity is all that's checked. */
+const ITEMS = {
+  WEAPON: { id: "WEAPON" },
+  ARMOR: { id: "ARMOR" },
+  SHIELD: { id: "SHIELD" },
+  POTION: { id: "POTION" },
+  KEY: { id: "KEY" },
+} as unknown as ItemSprites;
+
 // 3x2 floor (smaller than the viewport → camera pins to 0,0, all 6 cells shown).
 const TILES: TileType[][] = [
   ["WALL", "FLOOR", "DOOR"],
@@ -59,6 +69,7 @@ const STATE: GameStateView = {
     height: 2,
     tiles: TILES,
     enemies: [],
+    items: {},
     stairs_down: [1, 1],
   },
 };
@@ -72,6 +83,7 @@ describe("drawFloor", () => {
       IMAGES,
       PLAYER,
       ENEMIES,
+      ITEMS,
       0,
     );
     expect(ctx.fillStyle).toBe(BACKGROUND_COLOR);
@@ -86,6 +98,7 @@ describe("drawFloor", () => {
       IMAGES,
       PLAYER,
       ENEMIES,
+      ITEMS,
       0,
     );
 
@@ -110,6 +123,7 @@ describe("drawFloor", () => {
       IMAGES,
       PLAYER,
       ENEMIES,
+      ITEMS,
       1,
     );
     const player = drawImageCalls.at(-1);
@@ -132,12 +146,14 @@ describe("drawFloor", () => {
           height: 50,
           tiles: bigTiles,
           enemies: [],
+          items: {},
           stairs_down: [40, 25],
         },
       },
       IMAGES,
       PLAYER,
       ENEMIES,
+      ITEMS,
       0,
     );
 
@@ -168,6 +184,7 @@ describe("drawFloor", () => {
       IMAGES,
       PLAYER,
       ENEMIES,
+      ITEMS,
       0,
     );
     expect(fillRectCalls).toEqual([[0, 0, 240, 160]]);
@@ -189,12 +206,14 @@ describe("drawFloor", () => {
             { position: [0, 0], behaviour: "MELEE" },
             { position: [2, 1], behaviour: "BOSS" },
           ],
+          items: {},
           stairs_down: [1, 1],
         },
       },
       IMAGES,
       PLAYER,
       ENEMIES,
+      ITEMS,
       0,
     );
 
@@ -225,12 +244,14 @@ describe("drawFloor", () => {
             { position: [41, 25], behaviour: "RANGED" }, // in view
             { position: [0, 0], behaviour: "MELEE" }, // far off-screen
           ],
+          items: {},
           stairs_down: [40, 25],
         },
       },
       IMAGES,
       PLAYER,
       ENEMIES,
+      ITEMS,
       0,
     );
 
@@ -240,6 +261,112 @@ describe("drawFloor", () => {
     // Only the in-view ranged enemy is blitted; the off-screen melee is culled.
     expect(enemyBlits).toEqual([
       { image: ENEMIES.RANGED, sx: 8 * 16, sy: 5 * 16, sw: 16, sh: 16 },
+    ]);
+  });
+
+  it("blits ground items at their tile, after the floor and before enemies/player", () => {
+    // A potion at (0,0) and a weapon at (2,1) on the 3×2 floor (camera pinned 0,0),
+    // plus a melee enemy at (2,1) — items paint under the actors.
+    const { ctx, drawImageCalls } = fakeContext();
+    drawFloor(
+      ctx as unknown as CanvasRenderingContext2D,
+      {
+        player: { position: [1, 1] },
+        floor: {
+          width: 3,
+          height: 2,
+          tiles: TILES,
+          enemies: [{ position: [2, 1], behaviour: "MELEE" }],
+          items: {
+            "0,0": [{ item_type: "POTION" }],
+            "2,1": [{ item_type: "WEAPON" }],
+          },
+          stairs_down: [1, 1],
+        },
+      },
+      IMAGES,
+      PLAYER,
+      ENEMIES,
+      ITEMS,
+      0,
+    );
+
+    // 6 floor cells, then the two items, then the enemy, then the player last.
+    const sprites = drawImageCalls.slice(6);
+    expect(sprites).toEqual([
+      { image: ITEMS.POTION, sx: 0, sy: 0, sw: 16, sh: 16 },
+      { image: ITEMS.WEAPON, sx: 2 * 16, sy: 1 * 16, sw: 16, sh: 16 },
+      { image: ENEMIES.MELEE, sx: 2 * 16, sy: 1 * 16, sw: 16, sh: 16 },
+      { image: PLAYER, sx: 16, sy: 16, sw: 16, sh: 16 },
+    ]);
+  });
+
+  it("draws only the representative (first) item when a tile holds several", () => {
+    // One tile, two stacks of different types — only one 16px sprite fits the cell.
+    const { ctx, drawImageCalls } = fakeContext();
+    drawFloor(
+      ctx as unknown as CanvasRenderingContext2D,
+      {
+        player: { position: [1, 1] },
+        floor: {
+          width: 3,
+          height: 2,
+          tiles: TILES,
+          enemies: [],
+          items: { "0,0": [{ item_type: "KEY" }, { item_type: "SHIELD" }] },
+          stairs_down: [1, 1],
+        },
+      },
+      IMAGES,
+      PLAYER,
+      ENEMIES,
+      ITEMS,
+      0,
+    );
+
+    const itemBlits = drawImageCalls.filter((c) =>
+      Object.values(ITEMS).includes(c.image as HTMLImageElement),
+    );
+    expect(itemBlits).toEqual([
+      { image: ITEMS.KEY, sx: 0, sy: 0, sw: 16, sh: 16 },
+    ]);
+  });
+
+  it("culls items outside the viewport", () => {
+    // 80×50 floor, player mid-map → camera (33,20), window covers x∈[33,48) y∈[20,30).
+    const bigTiles: TileType[][] = Array.from({ length: 50 }, () =>
+      Array.from({ length: 80 }, (): TileType => "FLOOR"),
+    );
+    const { ctx, drawImageCalls } = fakeContext();
+    drawFloor(
+      ctx as unknown as CanvasRenderingContext2D,
+      {
+        player: { position: [40, 25] },
+        floor: {
+          width: 80,
+          height: 50,
+          tiles: bigTiles,
+          enemies: [],
+          items: {
+            "41,25": [{ item_type: "POTION" }], // in view
+            "0,0": [{ item_type: "WEAPON" }], // far off-screen
+          },
+          stairs_down: [40, 25],
+        },
+      },
+      IMAGES,
+      PLAYER,
+      ENEMIES,
+      ITEMS,
+      0,
+    );
+
+    const itemBlits = drawImageCalls.filter((c) =>
+      Object.values(ITEMS).includes(c.image as HTMLImageElement),
+    );
+    // Only the in-view potion is blitted; the off-screen weapon is culled.
+    expect(itemBlits).toEqual([
+      { image: ITEMS.POTION, sx: 8 * 16, sy: 5 * 16, sw: 16, sh: 16 },
     ]);
   });
 });
