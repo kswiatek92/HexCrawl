@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import GameCanvas from "./GameCanvas";
 import { BACKING_HEIGHT, BACKING_WIDTH, SCALE } from "./camera";
+import { PLAYER_FRAME_DURATION_MS } from "./playerAnimation";
 import type { GameStateView, TileType } from "../types/gameState";
 
 describe("GameCanvas element", () => {
@@ -77,7 +78,7 @@ describe("GameCanvas render loop", () => {
   // Let queued microtasks (image loads + the load promise) settle.
   const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 
-  it("loads tiles, then draws the current state on each frame", async () => {
+  it("loads sprites, then draws the current state on each frame", async () => {
     const { drawImage, fillRect, frames } = installFakes();
     render(<GameCanvas gameState={STATE} />);
 
@@ -86,7 +87,33 @@ describe("GameCanvas render loop", () => {
 
     frames[frames.length - 1](0); // run one frame
     expect(fillRect).toHaveBeenCalledWith(0, 0, 240, 160); // backdrop cleared
-    expect(drawImage).toHaveBeenCalledTimes(1); // the single FLOOR tile
+    expect(drawImage).toHaveBeenCalledTimes(2); // the single FLOOR tile + the player
+  });
+
+  it("advances the idle bob frame after the frame duration elapses", async () => {
+    const { drawImage, frames } = installFakes();
+    render(<GameCanvas gameState={STATE} />);
+    await flush();
+
+    // Player [0,0] on a 1×1 floor → drawn last at screen (0,0); frame 0 bob = 0.
+    frames[frames.length - 1](0);
+    expect(drawImage.mock.calls.at(-1)).toEqual([
+      expect.anything(),
+      0,
+      0,
+      16,
+      16,
+    ]);
+
+    // A frame past the duration steps the bob → y shifts up 1px.
+    frames[frames.length - 1](PLAYER_FRAME_DURATION_MS);
+    expect(drawImage.mock.calls.at(-1)).toEqual([
+      expect.anything(),
+      0,
+      -1,
+      16,
+      16,
+    ]);
   });
 
   it("cancels the animation frame on unmount", async () => {
