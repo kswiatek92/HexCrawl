@@ -40,6 +40,12 @@ export interface VisibleTile {
   screenY: number;
 }
 
+/** A pixel position in the backing buffer (top-left of a 16px cell). */
+export interface ScreenPosition {
+  x: number;
+  y: number;
+}
+
 /**
  * Clamp `value` into `[min, max]`. When `max < min` (the floor is smaller than
  * the viewport on this axis) the window can't move, so pin to `min` (0).
@@ -103,4 +109,23 @@ export function visibleTiles(
     }
   }
   return tiles;
+}
+
+/**
+ * Where the player's tile lands in the backing buffer, given the camera.
+ *
+ * The camera always centres on the player and clamps to the floor, so the player
+ * stays inside the 15×10 window (drifting off-centre only near the floor edges) —
+ * the result is always on-screen, no cull needed. Sprites are drawn one tile wide,
+ * so this top-left is also where the player sprite is blitted.
+ */
+export function playerScreenPosition(
+  camera: Camera,
+  player: Position,
+): ScreenPosition {
+  const [px, py] = player;
+  return {
+    x: (px - camera.x) * TILE_SIZE,
+    y: (py - camera.y) * TILE_SIZE,
+  };
 }

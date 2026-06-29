@@ -6,6 +6,7 @@ import {
   VIEWPORT_COLS,
   VIEWPORT_ROWS,
   computeCamera,
+  playerScreenPosition,
   visibleTiles,
 } from "./camera";
 
@@ -84,5 +85,26 @@ describe("visibleTiles", () => {
     expect(tiles).toHaveLength(5 * 4); // only the in-bounds cells
     // No returned tile may reference a cell past the floor bounds.
     expect(tiles.every((t) => t.worldX < 5 && t.worldY < 4)).toBe(true);
+  });
+});
+
+describe("playerScreenPosition", () => {
+  it("puts a centred player at the middle of the window", () => {
+    // Interior player → camera (33,20); offset (7,5) into the window.
+    const camera = computeCamera([40, 25], FLOOR_W, FLOOR_H);
+    expect(playerScreenPosition(camera, [40, 25])).toEqual({
+      x: 7 * TILE_SIZE,
+      y: 5 * TILE_SIZE,
+    });
+  });
+
+  it("drifts the player off-centre when the camera clamps at an edge", () => {
+    // Bottom-right corner: camera pins to (65,40), so the player sits deep into
+    // the window rather than centred — (79-65, 49-40) = (14, 9) tiles.
+    const camera = computeCamera([79, 49], FLOOR_W, FLOOR_H);
+    expect(playerScreenPosition(camera, [79, 49])).toEqual({
+      x: 14 * TILE_SIZE,
+      y: 9 * TILE_SIZE,
+    });
   });
 });
