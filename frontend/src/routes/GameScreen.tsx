@@ -1,14 +1,23 @@
 import { useGameStore } from "../store/gameStore";
 import GameCanvas from "../render/GameCanvas";
+import { useGameSocket } from "../net/useGameSocket";
+import { useKeyboardInput } from "../input/useKeyboardInput";
 
 export default function GameScreen() {
   const status = useGameStore((s) => s.status);
   const gameState = useGameStore((s) => s.gameState);
 
-  // `useGameSocket` writes `gameState` into the store as turn frames arrive;
-  // the renderer reads it here. The hook isn't mounted live yet — it needs a
-  // session id (from start-game) and a JWT (from Supabase auth), both later in
-  // Phase 5 — so until then the store stays `null` and the viewport is empty.
+  // The full input→socket→store path is wired here: `useGameSocket` writes
+  // `gameState` as turn frames arrive (the renderer reads it below), and
+  // `useKeyboardInput` drives the loop the other way — WASD/arrows/space →
+  // `sendAction`. Both are dormant for now: the socket needs a session id (from
+  // start-game) and a JWT (from Supabase auth), both later in Phase 5, so with
+  // `null` params it never connects. The keyboard handler is gated on a live
+  // connection (`status === "open"`), so until then no listener is attached and
+  // keys pass straight through to the browser (no captured scroll, no no-op).
+  const { sendAction } = useGameSocket({ sessionId: null, token: null });
+  useKeyboardInput(sendAction, { enabled: status === "open" });
+
   return (
     <section className="space-y-2">
       <h1 className="text-2xl font-bold">HexCrawl</h1>
