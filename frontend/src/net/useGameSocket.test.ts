@@ -219,4 +219,42 @@ describe("useGameSocket", () => {
     unmount();
     expect(ws.close).toHaveBeenCalled();
   });
+
+  it("blanks any prior run's state when starting to connect", () => {
+    // Seed the store as if a previous run had left state behind.
+    act(() => useGameStore.getState().setGameState(sampleState(9, 9)));
+
+    renderHook(() => useGameSocket({ sessionId: "game-2", token: "jwt" }));
+
+    expect(useGameStore.getState().gameState).toBeNull();
+  });
+
+  it("ignores a stale socket's late frames after unmount", () => {
+    const { unmount } = renderHook(() =>
+      useGameSocket({ sessionId: "game-1", token: "jwt" }),
+    );
+    const ws = lastSocket();
+    const state = sampleState(2, 2);
+
+    act(() => ws.open());
+    act(() => ws.receive({ type: "connected", game_id: "game-1", state }));
+    expect(useGameStore.getState().status).toBe("open");
+
+    unmount();
+
+    // A message and a close that arrive after cleanup must not write the store
+    // for a connection that is no longer active.
+    act(() =>
+      ws.receive({
+        type: "turn",
+        events: [],
+        state: sampleState(7, 7),
+        game_over: false,
+      }),
+    );
+    act(() => ws.fireClose());
+
+    expect(useGameStore.getState().status).toBe("open");
+    expect(useGameStore.getState().gameState).toEqual(state);
+  });
 });

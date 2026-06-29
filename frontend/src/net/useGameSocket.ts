@@ -2,10 +2,12 @@
  * `useGameSocket` — the client half of the WebSocket turn loop (task 5.6).
  *
  * Owns the socket *lifecycle* for one run: open it, run the first-message auth
- * handshake, dispatch inbound frames into the Zustand store, and close on
- * cleanup. The render/update split mirrors the backend's: declarative state
- * (`status` / `gameState`) flows into the store so the canvas can subscribe,
- * while the imperative `sendAction` is returned for the keyboard handler (5.7).
+ * handshake, push inbound `connected`/`turn` state into the Zustand store, and
+ * close on cleanup. (`error` frames are acknowledged but not yet stored — the
+ * HUD surfaces them in task 5.8.) The render/update split mirrors the backend's:
+ * declarative state (`status` / `gameState`) flows into the store so the canvas
+ * can subscribe, while the imperative `sendAction` is returned for the keyboard
+ * handler (5.7).
  *
  * Why an effect + ref (and not socket-in-state): the socket is a long-lived
  * side-effecting object, not render data. It's created in `useEffect` (which has
@@ -61,11 +63,20 @@ export function useGameSocket({
     // the hook can still be mounted unconditionally (hooks rules) before then.
     if (sessionId === null || token === null) return;
 
+    // Captured per effect-run: cleanup flips it false, so a stale socket's late
+    // handlers (a queued message or a delayed onclose firing after the
+    // StrictMode remount / a reconnect) are ignored instead of writing the store
+    // for a connection that is no longer active.
+    let active = true;
+
     const socket = new WebSocket(
       buildGameSocketUrl(sessionId, window.location),
     );
     socketRef.current = socket;
     setStatus("connecting");
+    // Blank any prior run's state so a reconnect (new sessionId/token) can't
+    // briefly paint the wrong run before the first frame of the new one lands.
+    setGameState(null);
 
     socket.onopen = () => {
       // First-message auth: the server awaits this before any action frame.
@@ -73,6 +84,7 @@ export function useGameSocket({
     };
 
     socket.onmessage = (event: MessageEvent) => {
+      if (!active) return;
       let frame: ServerFrame;
       try {
         frame = JSON.parse(event.data as string) as ServerFrame;
@@ -91,16 +103,20 @@ export function useGameSocket({
           // in `onclose` below; no extra client action needed here.
           break;
         case "error":
-          // Recoverable bad-message reply — leave `gameState` untouched.
+          // Recoverable bad-message reply: acknowledged but not stored yet —
+          // surfacing protocol errors in the UI is the HUD's job (task 5.8),
+          // which is what will add the store field to render them.
           break;
       }
     };
 
     socket.onclose = () => {
+      if (!active) return;
       setStatus("closed");
     };
 
     return () => {
+      active = false;
       socketRef.current = null;
       socket.close();
     };
