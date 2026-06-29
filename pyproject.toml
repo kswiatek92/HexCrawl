@@ -4,7 +4,7 @@ version = "0.0.0"
 description = "Browser-based turn-based dungeon crawler with a global leaderboard."
 requires-python = ">=3.12"
 dependencies = [
-    "alembic>=1.13",
+    "alembic>=1.18.5",
     "asyncpg>=0.29",
     "celery>=5.4",
     "fastapi>=0.138.0",
