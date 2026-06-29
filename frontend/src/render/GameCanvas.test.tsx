@@ -116,6 +116,33 @@ describe("GameCanvas render loop", () => {
     ]);
   });
 
+  it("starts the bob at rest on a non-zero first frame timestamp", async () => {
+    // rAF hands the loop a large ms-since-page-load timestamp on the first frame;
+    // it must seed the clock (no advance), not jump straight to the bobbed pose.
+    const { drawImage, frames } = installFakes();
+    render(<GameCanvas gameState={STATE} />);
+    await flush();
+
+    frames[frames.length - 1](10_000); // first real frame, far from 0
+    expect(drawImage.mock.calls.at(-1)).toEqual([
+      expect.anything(),
+      0,
+      0, // resting pose, not -1
+      16,
+      16,
+    ]);
+
+    // One frame-duration later it steps to the bobbed pose.
+    frames[frames.length - 1](10_000 + PLAYER_FRAME_DURATION_MS);
+    expect(drawImage.mock.calls.at(-1)).toEqual([
+      expect.anything(),
+      0,
+      -1,
+      16,
+      16,
+    ]);
+  });
+
   it("cancels the animation frame on unmount", async () => {
     const { cancel } = installFakes();
     const { unmount } = render(<GameCanvas gameState={STATE} />);

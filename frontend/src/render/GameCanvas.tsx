@@ -36,8 +36,12 @@ export default function GameCanvas({ gameState }: GameCanvasProps) {
   const stateRef = useRef<GameStateView | null>(gameState);
   // Per-frame animation state. A ref, not state: it mutates every animation step
   // and must NOT trigger a re-render (QUIZZES.md 5.4 — ref for mutable values the
-  // UI is not derived from, state for values it is).
-  const animRef = useRef({ frame: 0, lastFrameTime: 0 });
+  // UI is not derived from, state for values it is). `lastFrameTime` is null until
+  // the first frame seeds it from the rAF clock (see the loop).
+  const animRef = useRef<{ frame: number; lastFrameTime: number | null }>({
+    frame: 0,
+    lastFrameTime: null,
+  });
 
   useEffect(() => {
     stateRef.current = gameState;
@@ -62,11 +66,18 @@ export default function GameCanvas({ gameState }: GameCanvasProps) {
     const loop = (timestamp: number) => {
       if (cancelled || tiles === null || playerSprite === null) return;
       const anim = animRef.current;
-      // Advance the bob frame on its own cadence, independent of the (faster) rAF
-      // rate — step when at least one frame's worth of time has elapsed.
-      if (timestamp - anim.lastFrameTime >= PLAYER_FRAME_DURATION_MS) {
-        anim.frame = (anim.frame + 1) % PLAYER_FRAME_COUNT;
-        anim.lastFrameTime = timestamp;
+      // Seed the clock on the first frame so the bob starts at rest — the rAF
+      // timestamp is ms-since-page-load, so comparing against 0 would advance
+      // immediately. Then step the bob on its own cadence, independent of the
+      // (faster) rAF rate: advance by whole elapsed frames and carry the
+      // remainder, so a dropped/paused frame catches up cleanly rather than
+      // skewing the cadence.
+      if (anim.lastFrameTime === null) anim.lastFrameTime = timestamp;
+      const elapsed = timestamp - anim.lastFrameTime;
+      if (elapsed >= PLAYER_FRAME_DURATION_MS) {
+        const steps = Math.floor(elapsed / PLAYER_FRAME_DURATION_MS);
+        anim.frame = (anim.frame + steps) % PLAYER_FRAME_COUNT;
+        anim.lastFrameTime += steps * PLAYER_FRAME_DURATION_MS;
       }
       drawFloor(ctx, stateRef.current, tiles, playerSprite, anim.frame);
       rafId = requestAnimationFrame(loop);
