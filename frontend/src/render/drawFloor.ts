@@ -30,7 +30,8 @@ import { bobOffsetForFrame } from "./playerAnimation";
 export const BACKGROUND_COLOR = "#0F380F";
 
 /**
- * Clear the buffer to the backdrop, blit the visible floor slice, then the player.
+ * Clear the buffer to the backdrop, then blit the visible floor slice, ground
+ * items, enemies, and the player (in that painter's order).
  *
  * Clearing every frame avoids smearing stale pixels as the camera moves, and
  * fills the border gap when the floor is smaller than the viewport. A `null`
