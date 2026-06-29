@@ -7,12 +7,13 @@
  * draw" math (in `camera.ts`) separate from the "how to draw" calls here.
  *
  * 5.3 drew floor tiles only. 5.4 adds the player sprite on top, at its tile with a
- * frame-driven idle bob; enemies / items are tasks 5.5 / 5.5a over the same camera.
+ * frame-driven idle bob; 5.5 adds enemies and 5.5a ground items over the same camera.
  */
 
-import type { GameStateView } from "../types/gameState";
+import type { GameStateView, Position } from "../types/gameState";
 import type { TileImages } from "./tileSet";
 import type { EnemySprites } from "./enemySprites";
+import type { ItemSprites } from "./itemSprites";
 import {
   BACKING_HEIGHT,
   BACKING_WIDTH,
@@ -35,10 +36,11 @@ export const BACKGROUND_COLOR = "#0F380F";
  * fills the border gap when the floor is smaller than the viewport. A `null`
  * state (no run yet — live data arrives in task 5.6) paints just the backdrop.
  *
- * Enemies are drawn after the floor, each at its tile (one cell) and culled if
- * off-screen — they can sit anywhere on the 80×50 floor. The player is drawn last
- * (on top of floor and enemies) at its tile, scaled to one cell; `frame` selects the
- * idle-bob vertical offset so the loop can animate it.
+ * Ground items are drawn first over the floor, then enemies, then the player — so
+ * actors stand on top of loot. Items and enemies both sit anywhere on the 80×50
+ * floor, so each is culled if off-screen. The player is drawn last (on top of
+ * everything) at its tile, scaled to one cell; `frame` selects the idle-bob
+ * vertical offset so the loop can animate it.
  */
 export function drawFloor(
   ctx: CanvasRenderingContext2D,
@@ -46,6 +48,7 @@ export function drawFloor(
   images: TileImages,
   playerSprite: HTMLImageElement,
   enemySprites: EnemySprites,
+  itemSprites: ItemSprites,
   frame: number,
 ): void {
   ctx.fillStyle = BACKGROUND_COLOR;
@@ -64,6 +67,18 @@ export function drawFloor(
       TILE_SIZE,
       TILE_SIZE,
     );
+  }
+
+  // Ground items, before actors so the player/enemies stand on top of loot. The
+  // key is the stringified tile ("x,y"); a tile can hold several stacks, but only
+  // one 16px sprite fits the cell, so we draw the first (representative) item.
+  for (const [key, stack] of Object.entries(floor.items)) {
+    if (stack.length === 0) continue;
+    const [kx, ky] = key.split(",");
+    const position: Position = [Number(kx), Number(ky)];
+    if (!isWithinViewport(camera, position)) continue;
+    const { x, y } = worldToScreen(camera, position);
+    ctx.drawImage(itemSprites[stack[0].item_type], x, y, TILE_SIZE, TILE_SIZE);
   }
 
   for (const enemy of floor.enemies) {
