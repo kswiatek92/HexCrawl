@@ -259,6 +259,14 @@ modules otherwise.
   lives in a `useRef` in `GameCanvas` (never `useState` — it must not trigger a re-render,
   QUIZZES.md 5.4); the frame→offset math is pure (`playerAnimation.ts`).
   Wire-shape types mirror `src/entrypoints/http/schemas.py` in `frontend/src/types/gameState.ts`.
+  The **WebSocket turn-loop client** (task 5.6) lives in `frontend/src/net/`: the
+  `useGameSocket` hook owns the socket lifecycle (open → first-message `{type:"auth",token}`
+  handshake → dispatch `connected`/`turn`/`error` frames → close on cleanup, StrictMode-safe)
+  and connects through the `/ws` dev-proxy path, never a hardcoded origin. It drives the
+  Zustand store (`status` + `gameState`) so the canvas reads state via a selector, decoupled
+  from where the socket is mounted, and returns an imperative `sendAction` for the keyboard
+  handler (5.7). The client wire-protocol types (`ClientAction`/`ServerFrame`) mirror
+  `src/entrypoints/ws/protocol.py` in `frontend/src/types/socket.ts` — keep them in lockstep.
 - **Lint:** `pnpm lint` (ESLint, flat config `eslint.config.js`).
 - **Format:** `pnpm exec prettier --check .`
 - **Types:** `pnpm tsc --noEmit`.
