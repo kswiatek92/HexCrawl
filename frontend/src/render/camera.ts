@@ -23,8 +23,33 @@ export const VIEWPORT_ROWS = 10;
 export const BACKING_WIDTH = VIEWPORT_COLS * TILE_SIZE; // 240
 /** Backing-buffer height in pixels (GBA-native). */
 export const BACKING_HEIGHT = VIEWPORT_ROWS * TILE_SIZE; // 160
-/** Integer upscale factor for crisp pixels (240×160 → 720×480). */
+/**
+ * Fallback integer upscale factor (240×160 → 720×480), used until the canvas
+ * container has been measured (and by tests as a known baseline).
+ */
 export const SCALE = 3;
+
+/**
+ * The largest integer upscale of the 240×160 backing buffer that fits a
+ * container, floored per axis so pixels stay square and crisp — fractional
+ * scaling would shimmer under `image-rendering: pixelated`. Clamped to 1: on a
+ * container smaller than the buffer we accept overflow rather than a 0× (never
+ * painted) canvas.
+ */
+export function largestIntegerScale(
+  containerWidth: number,
+  containerHeight: number,
+): number {
+  return Math.max(
+    1,
+    Math.floor(
+      Math.min(
+        containerWidth / BACKING_WIDTH,
+        containerHeight / BACKING_HEIGHT,
+      ),
+    ),
+  );
+}
 
 /** Top-left tile of the viewport, in floor (world) tile coordinates. */
 export interface Camera {

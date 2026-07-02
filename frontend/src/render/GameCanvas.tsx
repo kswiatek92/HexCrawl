@@ -13,9 +13,14 @@
  *    (turns over the WS, wired in task 5.6). UI = function of state.
  */
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { GameStateView } from "../types/gameState";
-import { BACKING_HEIGHT, BACKING_WIDTH, SCALE } from "./camera";
+import {
+  BACKING_HEIGHT,
+  BACKING_WIDTH,
+  SCALE,
+  largestIntegerScale,
+} from "./camera";
 import { drawFloor } from "./drawFloor";
 import { loadTileImages, type TileImages } from "./tileSet";
 import { loadPlayerSprite } from "./playerSprite";
@@ -33,6 +38,11 @@ interface GameCanvasProps {
 
 export default function GameCanvas({ gameState }: GameCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  // The CSS upscale factor. State, not a ref: the canvas style is derived from
+  // it, so a resize must re-render (unlike the per-frame animation below, which
+  // must not). `SCALE` is only the pre-measure first-paint value.
+  const [scale, setScale] = useState(SCALE);
   // The render loop reads state from here, never from the closure — so a new
   // prop just updates a ref instead of restarting the loop.
   const stateRef = useRef<GameStateView | null>(gameState);
@@ -48,6 +58,22 @@ export default function GameCanvas({ gameState }: GameCanvasProps) {
   useEffect(() => {
     stateRef.current = gameState;
   }, [gameState]);
+
+  // Largest-fit integer scaling (the layout pass deferred from 5.3): measure
+  // the container and pick the biggest whole multiple of 240×160 that fits.
+  // A ResizeObserver keeps it honest as the flex column or viewport changes.
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const measure = () => {
+      const rect = container.getBoundingClientRect();
+      setScale(largestIntegerScale(rect.width, rect.height));
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -131,18 +157,25 @@ export default function GameCanvas({ gameState }: GameCanvasProps) {
   }, []);
 
   return (
-    <canvas
-      ref={canvasRef}
-      width={BACKING_WIDTH}
-      height={BACKING_HEIGHT}
-      // Fixed integer ×SCALE (720×480) for crisp pixels. Responsive
-      // largest-fit scaling is deferred to the HUD/layout pass (task 5.8).
-      style={{
-        width: BACKING_WIDTH * SCALE,
-        height: BACKING_HEIGHT * SCALE,
-        imageRendering: "pixelated",
-      }}
-      data-testid="game-canvas"
-    />
+    // The measured box: fills the layout column, viewport-relative height so a
+    // window resize re-fires the observer. The canvas inside stays an exact
+    // integer multiple of the backing buffer for crisp pixels.
+    <div
+      ref={containerRef}
+      className="h-[70vh] w-full"
+      data-testid="game-canvas-container"
+    >
+      <canvas
+        ref={canvasRef}
+        width={BACKING_WIDTH}
+        height={BACKING_HEIGHT}
+        style={{
+          width: BACKING_WIDTH * scale,
+          height: BACKING_HEIGHT * scale,
+          imageRendering: "pixelated",
+        }}
+        data-testid="game-canvas"
+      />
+    </div>
   );
 }

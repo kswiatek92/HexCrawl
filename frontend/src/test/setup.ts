@@ -6,3 +6,14 @@ import "@testing-library/jest-dom/vitest";
 // and return a fake.
 HTMLCanvasElement.prototype.getContext = (() =>
   null) as typeof HTMLCanvasElement.prototype.getContext;
+
+// jsdom has no ResizeObserver (GameCanvas uses one for largest-fit scaling).
+// An inert observer is enough: jsdom never lays out, so there are no real
+// resizes to report — tests that exercise scaling mock getBoundingClientRect
+// and rely on the component's mount-time measure instead.
+class InertResizeObserver implements ResizeObserver {
+  observe(): void {}
+  unobserve(): void {}
+  disconnect(): void {}
+}
+globalThis.ResizeObserver ??= InertResizeObserver;

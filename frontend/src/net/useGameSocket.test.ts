@@ -187,7 +187,11 @@ describe("useGameSocket", () => {
     const ws = lastSocket();
     act(() => ws.open());
     act(() =>
-      ws.receive({ type: "connected", game_id: "game-1", state: sampleState(0, 0) }),
+      ws.receive({
+        type: "connected",
+        game_id: "game-1",
+        state: sampleState(0, 0),
+      }),
     );
     expect(useGameStore.getState().kills).toBe(0);
 
@@ -231,7 +235,11 @@ describe("useGameSocket", () => {
     expect(useGameStore.getState().kills).toBe(1);
 
     act(() =>
-      ws.receive({ type: "connected", game_id: "game-1", state: sampleState(0, 0) }),
+      ws.receive({
+        type: "connected",
+        game_id: "game-1",
+        state: sampleState(0, 0),
+      }),
     );
     expect(useGameStore.getState().kills).toBe(0);
   });

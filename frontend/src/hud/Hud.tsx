@@ -24,15 +24,11 @@
 
 import { useGameStore } from "../store/gameStore";
 import { ITEM_URLS } from "../render/itemSprites";
-import type { ItemType } from "../types/gameState";
-
-/** Slots in the inventory grid — a fixed rack, GBA-style, filled left to right. */
-export const INVENTORY_SLOT_COUNT = 6;
-
-/** One carried item, once the backend ships inventory on `PlayerState`. */
-export interface InventoryItem {
-  item_type: ItemType;
-}
+import {
+  INVENTORY_SLOT_COUNT,
+  hpBarColorClass,
+  type InventoryItem,
+} from "./hudModel";
 
 /**
  * The player's carried items. Always empty in v1 — see the module docstring.
@@ -40,14 +36,6 @@ export interface InventoryItem {
  * will replace is explicit.
  */
 const INVENTORY: readonly InventoryItem[] = [];
-
-/** Bar colour by remaining HP: healthy → wounded → critical. */
-export function hpBarColorClass(hp: number, maxHp: number): string {
-  const ratio = maxHp > 0 ? hp / maxHp : 0;
-  if (ratio > 0.5) return "bg-emerald-500";
-  if (ratio > 0.25) return "bg-amber-500";
-  return "bg-red-500";
-}
 
 function InventorySlot({ item }: { item: InventoryItem | undefined }) {
   return (

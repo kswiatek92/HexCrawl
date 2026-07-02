@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import GameCanvas from "./GameCanvas";
-import { BACKING_HEIGHT, BACKING_WIDTH, SCALE } from "./camera";
+import { BACKING_HEIGHT, BACKING_WIDTH } from "./camera";
 import { PLAYER_FRAME_DURATION_MS } from "./playerAnimation";
 import type { GameStateView, TileType } from "../types/gameState";
 
@@ -14,12 +14,36 @@ describe("GameCanvas element", () => {
     expect(canvas.height).toBe(BACKING_HEIGHT); // 160
   });
 
-  it("scales up with crisp (pixelated) integer scaling", () => {
+  it("clamps to 1× crisp scaling in an unmeasurable (zero-size) container", () => {
+    // jsdom never lays out, so the mount-time measure sees a 0×0 container —
+    // the scale must clamp to 1, never 0 (a 0× canvas would never paint).
     render(<GameCanvas gameState={null} />);
     const canvas = screen.getByTestId("game-canvas") as HTMLCanvasElement;
     expect(canvas.style.imageRendering).toBe("pixelated");
-    expect(canvas.style.width).toBe(`${BACKING_WIDTH * SCALE}px`); // 720px
-    expect(canvas.style.height).toBe(`${BACKING_HEIGHT * SCALE}px`); // 480px
+    expect(canvas.style.width).toBe(`${BACKING_WIDTH}px`); // 240px, 1×
+    expect(canvas.style.height).toBe(`${BACKING_HEIGHT}px`); // 160px, 1×
+  });
+
+  it("picks the largest integer scale that fits the measured container", () => {
+    // 1000×600 fits 240×160 at min(4.16…, 3.75) → 3× (never fractional).
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({
+      width: 1000,
+      height: 600,
+      top: 0,
+      left: 0,
+      right: 1000,
+      bottom: 600,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    } as DOMRect);
+
+    render(<GameCanvas gameState={null} />);
+    const canvas = screen.getByTestId("game-canvas") as HTMLCanvasElement;
+    expect(canvas.style.width).toBe(`${BACKING_WIDTH * 3}px`); // 720px
+    expect(canvas.style.height).toBe(`${BACKING_HEIGHT * 3}px`); // 480px
+
+    vi.restoreAllMocks();
   });
 
   it("mounts without a 2D context (jsdom default) and without game state", () => {
@@ -31,7 +55,16 @@ describe("GameCanvas element", () => {
 // none of which jsdom provides — so we inject fakes for all three.
 describe("GameCanvas render loop", () => {
   const STATE: GameStateView = {
-    player: { position: [0, 0] },
+    current_floor_index: 0,
+    turn_count: 0,
+    player: {
+      name: "Hero",
+      position: [0, 0],
+      hp: 20,
+      max_hp: 20,
+      attack: 3,
+      defense: 1,
+    },
     floor: {
       width: 1,
       height: 1,

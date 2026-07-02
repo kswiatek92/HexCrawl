@@ -1,13 +1,17 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
-import Hud, { INVENTORY_SLOT_COUNT, hpBarColorClass } from "./Hud";
+import Hud from "./Hud";
+import { INVENTORY_SLOT_COUNT, hpBarColorClass } from "./hudModel";
 import { useGameStore } from "../store/gameStore";
 import type { GameStateView } from "../types/gameState";
 
 const initialStore = useGameStore.getState();
 
 afterEach(() => {
-  useGameStore.setState(initialStore, true);
+  // The Hud may still be mounted when this reset runs (RTL's auto-cleanup is
+  // registered first, so it runs after this hook) — wrap in act so the
+  // store-driven re-render isn't an un-acted update.
+  act(() => useGameStore.setState(initialStore, true));
 });
 
 const sampleState = (overrides?: {
@@ -97,16 +101,16 @@ describe("Hud", () => {
   it("surfaces the last protocol error and hides it once cleared", () => {
     useGameStore.getState().startRun(sampleState());
     useGameStore.getState().setLastError("unknown action 'jump'");
-    const { rerender } = render(<Hud />);
+    render(<Hud />);
 
     expect(screen.getByTestId("hud-error")).toHaveTextContent(
       "unknown action 'jump'",
     );
 
     // The next successful turn clears the error (store contract) — the HUD
-    // must drop the warning, not keep a stale one on screen.
-    useGameStore.getState().applyTurn(sampleState(), 0);
-    rerender(<Hud />);
+    // must drop the warning, not keep a stale one on screen. The store update
+    // re-renders the subscribed component; no rerender() needed.
+    act(() => useGameStore.getState().applyTurn(sampleState(), 0));
     expect(screen.queryByTestId("hud-error")).not.toBeInTheDocument();
   });
 });

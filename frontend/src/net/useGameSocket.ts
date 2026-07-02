@@ -22,7 +22,11 @@
 
 import { useCallback, useEffect, useRef } from "react";
 import { useGameStore } from "../store/gameStore";
-import type { ClientAction, ServerFrame, TurnEventFrame } from "../types/socket";
+import type {
+  ClientAction,
+  ServerFrame,
+  TurnEventFrame,
+} from "../types/socket";
 
 /**
  * Count the kills in one turn's event narrative.
@@ -133,7 +137,15 @@ export function useGameSocket({
       socketRef.current = null;
       socket.close();
     };
-  }, [sessionId, token, setStatus, startRun, applyTurn, setLastError, resetRun]);
+  }, [
+    sessionId,
+    token,
+    setStatus,
+    startRun,
+    applyTurn,
+    setLastError,
+    resetRun,
+  ]);
 
   const sendAction = useCallback((action: ClientAction) => {
     const socket = socketRef.current;
