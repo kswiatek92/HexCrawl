@@ -46,13 +46,20 @@ export interface ConnectedFrame {
 }
 
 /**
+ * One serialised `TurnEvent` — `serialize_event` always emits a snake_case
+ * `type` discriminator (e.g. `"enemy_killed"`) plus variant-specific fields.
+ * Only the discriminator is typed: the HUD's kills counter (task 5.8) switches
+ * on it, and the per-variant payloads stay loose until something reads them.
+ */
+export type TurnEventFrame = { type: string } & Record<string, unknown>;
+
+/**
  * The result of one turn: the event narrative, the new state, and whether the
- * run ended. `events` is left loosely typed — the HUD (task 5.8) is what
- * consumes the narrative; the renderer only needs `state`.
+ * run ended.
  */
 export interface TurnFrame {
   type: "turn";
-  events: ReadonlyArray<Record<string, unknown>>;
+  events: ReadonlyArray<TurnEventFrame>;
   state: GameStateView;
   game_over: boolean;
 }
