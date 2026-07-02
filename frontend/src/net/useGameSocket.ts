@@ -2,12 +2,11 @@
  * `useGameSocket` — the client half of the WebSocket turn loop (task 5.6).
  *
  * Owns the socket *lifecycle* for one run: open it, run the first-message auth
- * handshake, push inbound `connected`/`turn` state into the Zustand store, and
- * close on cleanup. (`error` frames are acknowledged but not yet stored — the
- * HUD surfaces them in task 5.8.) The render/update split mirrors the backend's:
- * declarative state (`status` / `gameState`) flows into the store so the canvas
- * can subscribe, while the imperative `sendAction` is returned for the keyboard
- * handler (5.7).
+ * handshake, dispatch one store action per inbound `connected`/`turn`/`error`
+ * frame, and close on cleanup. The render/update split mirrors the backend's:
+ * declarative state (`status` / `gameState` / `kills` / `lastError`) flows into
+ * the store so the canvas and HUD can subscribe, while the imperative
+ * `sendAction` is returned for the keyboard handler (5.7).
  *
  * Why an effect + ref (and not socket-in-state): the socket is a long-lived
  * side-effecting object, not render data. It's created in `useEffect` (which has
@@ -23,7 +22,22 @@
 
 import { useCallback, useEffect, useRef } from "react";
 import { useGameStore } from "../store/gameStore";
-import type { ClientAction, ServerFrame } from "../types/socket";
+import type {
+  ClientAction,
+  ServerFrame,
+  TurnEventFrame,
+} from "../types/socket";
+
+/**
+ * Count the kills in one turn's event narrative.
+ *
+ * The backend keeps no kill counter — `enemy_killed` events are the source of
+ * truth (aggregation is deliberately the consumer's job, mirroring how the
+ * backend's `SubmitScore` counts them server-side). Pure and exported for tests.
+ */
+export function countKills(events: ReadonlyArray<TurnEventFrame>): number {
+  return events.filter((event) => event.type === "enemy_killed").length;
+}
 
 interface UseGameSocketParams {
   /** The run id (`Dungeon.dungeon_id`). `null` until a run is started. */
@@ -56,7 +70,10 @@ export function useGameSocket({
 }: UseGameSocketParams): UseGameSocketResult {
   const socketRef = useRef<WebSocket | null>(null);
   const setStatus = useGameStore((s) => s.setStatus);
-  const setGameState = useGameStore((s) => s.setGameState);
+  const startRun = useGameStore((s) => s.startRun);
+  const applyTurn = useGameStore((s) => s.applyTurn);
+  const setLastError = useGameStore((s) => s.setLastError);
+  const resetRun = useGameStore((s) => s.resetRun);
 
   useEffect(() => {
     // Nothing to connect to until a run exists and the user is authenticated;
@@ -74,9 +91,9 @@ export function useGameSocket({
     );
     socketRef.current = socket;
     setStatus("connecting");
-    // Blank any prior run's state so a reconnect (new sessionId/token) can't
-    // briefly paint the wrong run before the first frame of the new one lands.
-    setGameState(null);
+    // Blank any prior run so a reconnect (new sessionId/token) can't briefly
+    // paint the wrong run's state or stats before the new run's first frame.
+    resetRun();
 
     socket.onopen = () => {
       // First-message auth: the server awaits this before any action frame.
@@ -95,17 +112,17 @@ export function useGameSocket({
       switch (frame.type) {
         case "connected":
           setStatus("open");
-          setGameState(frame.state);
+          startRun(frame.state);
           break;
         case "turn":
-          setGameState(frame.state);
+          applyTurn(frame.state, countKills(frame.events));
           // `game_over` ends the run server-side with a 1000 close, which lands
           // in `onclose` below; no extra client action needed here.
           break;
         case "error":
-          // Recoverable bad-message reply: acknowledged but not stored yet —
-          // surfacing protocol errors in the UI is the HUD's job (task 5.8),
-          // which is what will add the store field to render them.
+          // Recoverable bad-message reply: stored for the HUD to surface; the
+          // next successful turn clears it (`applyTurn`).
+          setLastError(frame.detail);
           break;
       }
     };
@@ -120,7 +137,15 @@ export function useGameSocket({
       socketRef.current = null;
       socket.close();
     };
-  }, [sessionId, token, setStatus, setGameState]);
+  }, [
+    sessionId,
+    token,
+    setStatus,
+    startRun,
+    applyTurn,
+    setLastError,
+    resetRun,
+  ]);
 
   const sendAction = useCallback((action: ClientAction) => {
     const socket = socketRef.current;

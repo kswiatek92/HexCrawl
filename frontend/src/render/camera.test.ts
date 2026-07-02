@@ -7,6 +7,7 @@ import {
   VIEWPORT_ROWS,
   computeCamera,
   isWithinViewport,
+  largestIntegerScale,
   playerScreenPosition,
   visibleTiles,
   worldToScreen,
@@ -147,5 +148,28 @@ describe("playerScreenPosition", () => {
       x: 14 * TILE_SIZE,
       y: 9 * TILE_SIZE,
     });
+  });
+});
+
+describe("largestIntegerScale", () => {
+  it("returns the exact multiple on a perfectly fitting container", () => {
+    expect(largestIntegerScale(720, 480)).toBe(3);
+  });
+
+  it("floors a fractional fit rather than scaling fractionally", () => {
+    // 4.16x wide, 3.75x tall → 3x (fractional scaling would shimmer).
+    expect(largestIntegerScale(1000, 600)).toBe(3);
+  });
+
+  it("is bound by the tighter axis", () => {
+    // Wide but short: height only fits 1x.
+    expect(largestIntegerScale(2400, 200)).toBe(1);
+    // Tall but narrow: width only fits 2x.
+    expect(largestIntegerScale(480, 1600)).toBe(2);
+  });
+
+  it("clamps to 1x on a container smaller than the backing buffer", () => {
+    expect(largestIntegerScale(100, 100)).toBe(1);
+    expect(largestIntegerScale(0, 0)).toBe(1);
   });
 });

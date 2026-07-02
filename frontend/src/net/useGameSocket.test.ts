@@ -1,6 +1,6 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { buildGameSocketUrl, useGameSocket } from "./useGameSocket";
+import { buildGameSocketUrl, countKills, useGameSocket } from "./useGameSocket";
 import { useGameStore } from "../store/gameStore";
 import type { GameStateView } from "../types/gameState";
 
@@ -61,7 +61,16 @@ class MockWebSocket {
 }
 
 const sampleState = (x: number, y: number): GameStateView => ({
-  player: { position: [x, y] },
+  current_floor_index: 0,
+  turn_count: 0,
+  player: {
+    name: "Hero",
+    position: [x, y],
+    hp: 20,
+    max_hp: 20,
+    attack: 3,
+    defense: 1,
+  },
   floor: {
     width: 1,
     height: 1,
@@ -101,6 +110,23 @@ describe("buildGameSocketUrl", () => {
     expect(
       buildGameSocketUrl("abc", { protocol: "https:", host: "hexcrawl.io" }),
     ).toBe("wss://hexcrawl.io/ws/game/abc");
+  });
+});
+
+describe("countKills", () => {
+  it("counts only enemy_killed events", () => {
+    expect(
+      countKills([
+        { type: "player_moved", from: [0, 0], to: [1, 0] },
+        { type: "enemy_killed", enemy_id: "e1" },
+        { type: "player_damaged", amount: 2 },
+        { type: "enemy_killed", enemy_id: "e2" },
+      ]),
+    ).toBe(2);
+  });
+
+  it("returns 0 for an empty narrative", () => {
+    expect(countKills([])).toBe(0);
   });
 });
 
@@ -156,7 +182,69 @@ describe("useGameSocket", () => {
     expect(useGameStore.getState().gameState).toEqual(final);
   });
 
-  it("an error frame leaves the stored state untouched", () => {
+  it("counts enemy_killed events across turn frames into the kills stat", () => {
+    renderHook(() => useGameSocket({ sessionId: "game-1", token: "jwt" }));
+    const ws = lastSocket();
+    act(() => ws.open());
+    act(() =>
+      ws.receive({
+        type: "connected",
+        game_id: "game-1",
+        state: sampleState(0, 0),
+      }),
+    );
+    expect(useGameStore.getState().kills).toBe(0);
+
+    act(() =>
+      ws.receive({
+        type: "turn",
+        events: [
+          { type: "player_attacked", enemy_id: "e1", damage: 3, killed: true },
+          { type: "enemy_killed", enemy_id: "e1" },
+          { type: "enemy_killed", enemy_id: "e2" },
+        ],
+        state: sampleState(1, 0),
+        game_over: false,
+      }),
+    );
+    expect(useGameStore.getState().kills).toBe(2);
+
+    act(() =>
+      ws.receive({
+        type: "turn",
+        events: [{ type: "enemy_killed", enemy_id: "e3" }],
+        state: sampleState(2, 0),
+        game_over: false,
+      }),
+    );
+    expect(useGameStore.getState().kills).toBe(3);
+  });
+
+  it("a fresh connected frame zeroes the previous run's kills", () => {
+    renderHook(() => useGameSocket({ sessionId: "game-1", token: "jwt" }));
+    const ws = lastSocket();
+    act(() => ws.open());
+    act(() =>
+      ws.receive({
+        type: "turn",
+        events: [{ type: "enemy_killed", enemy_id: "e1" }],
+        state: sampleState(1, 1),
+        game_over: false,
+      }),
+    );
+    expect(useGameStore.getState().kills).toBe(1);
+
+    act(() =>
+      ws.receive({
+        type: "connected",
+        game_id: "game-1",
+        state: sampleState(0, 0),
+      }),
+    );
+    expect(useGameStore.getState().kills).toBe(0);
+  });
+
+  it("an error frame stores its detail and leaves the state untouched", () => {
     renderHook(() => useGameSocket({ sessionId: "game-1", token: "jwt" }));
     const ws = lastSocket();
     const state = sampleState(1, 1);
@@ -166,6 +254,26 @@ describe("useGameSocket", () => {
     act(() => ws.receive({ type: "error", detail: "unknown action 'jump'" }));
 
     expect(useGameStore.getState().gameState).toEqual(state);
+    expect(useGameStore.getState().lastError).toBe("unknown action 'jump'");
+  });
+
+  it("the next successful turn clears a stored error", () => {
+    renderHook(() => useGameSocket({ sessionId: "game-1", token: "jwt" }));
+    const ws = lastSocket();
+
+    act(() => ws.open());
+    act(() => ws.receive({ type: "error", detail: "bad frame" }));
+    expect(useGameStore.getState().lastError).toBe("bad frame");
+
+    act(() =>
+      ws.receive({
+        type: "turn",
+        events: [],
+        state: sampleState(1, 1),
+        game_over: false,
+      }),
+    );
+    expect(useGameStore.getState().lastError).toBeNull();
   });
 
   it("a non-JSON frame is dropped without crashing the loop", () => {
@@ -220,13 +328,14 @@ describe("useGameSocket", () => {
     expect(ws.close).toHaveBeenCalled();
   });
 
-  it("blanks any prior run's state when starting to connect", () => {
+  it("blanks any prior run's state and stats when starting to connect", () => {
     // Seed the store as if a previous run had left state behind.
-    act(() => useGameStore.getState().setGameState(sampleState(9, 9)));
+    act(() => useGameStore.getState().applyTurn(sampleState(9, 9), 6));
 
     renderHook(() => useGameSocket({ sessionId: "game-2", token: "jwt" }));
 
     expect(useGameStore.getState().gameState).toBeNull();
+    expect(useGameStore.getState().kills).toBe(0);
   });
 
   it("ignores a stale socket's late frames after unmount", () => {

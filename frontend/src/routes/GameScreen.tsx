@@ -1,5 +1,6 @@
 import { useGameStore } from "../store/gameStore";
 import GameCanvas from "../render/GameCanvas";
+import Hud from "../hud/Hud";
 import { useGameSocket } from "../net/useGameSocket";
 import { useKeyboardInput } from "../input/useKeyboardInput";
 
@@ -24,7 +25,15 @@ export default function GameScreen() {
       <p className="text-slate-400">
         Connection status: <span data-testid="conn-status">{status}</span>
       </p>
-      <GameCanvas gameState={gameState} />
+      {/* World + HUD side by side: the canvas flexes into the remaining width
+          (its container is what the largest-fit integer scaling measures) and
+          the HUD keeps its fixed rail. HTML over canvas, not drawn into it. */}
+      <div className="flex items-start gap-4">
+        <div className="min-w-0 flex-1">
+          <GameCanvas gameState={gameState} />
+        </div>
+        <Hud />
+      </div>
     </section>
   );
 }

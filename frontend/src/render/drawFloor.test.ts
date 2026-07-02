@@ -56,6 +56,16 @@ const ITEMS = {
   KEY: { id: "KEY" },
 } as unknown as ItemSprites;
 
+/** A PlayerView at a tile — drawFloor reads only `position`; stats are filler. */
+const playerAt = (x: number, y: number): GameStateView["player"] => ({
+  name: "Hero",
+  position: [x, y],
+  hp: 20,
+  max_hp: 20,
+  attack: 3,
+  defense: 1,
+});
+
 // 3x2 floor (smaller than the viewport → camera pins to 0,0, all 6 cells shown).
 const TILES: TileType[][] = [
   ["WALL", "FLOOR", "DOOR"],
@@ -63,7 +73,9 @@ const TILES: TileType[][] = [
 ];
 
 const STATE: GameStateView = {
-  player: { position: [1, 1] },
+  current_floor_index: 0,
+  turn_count: 0,
+  player: playerAt(1, 1),
   floor: {
     width: 3,
     height: 2,
@@ -140,7 +152,9 @@ describe("drawFloor", () => {
     drawFloor(
       ctx as unknown as CanvasRenderingContext2D,
       {
-        player: { position: [40, 25] },
+        current_floor_index: 0,
+        turn_count: 0,
+        player: playerAt(40, 25),
         floor: {
           width: 80,
           height: 50,
@@ -197,7 +211,9 @@ describe("drawFloor", () => {
     drawFloor(
       ctx as unknown as CanvasRenderingContext2D,
       {
-        player: { position: [1, 1] },
+        current_floor_index: 0,
+        turn_count: 0,
+        player: playerAt(1, 1),
         floor: {
           width: 3,
           height: 2,
@@ -235,7 +251,9 @@ describe("drawFloor", () => {
     drawFloor(
       ctx as unknown as CanvasRenderingContext2D,
       {
-        player: { position: [40, 25] },
+        current_floor_index: 0,
+        turn_count: 0,
+        player: playerAt(40, 25),
         floor: {
           width: 80,
           height: 50,
@@ -271,7 +289,9 @@ describe("drawFloor", () => {
     drawFloor(
       ctx as unknown as CanvasRenderingContext2D,
       {
-        player: { position: [1, 1] },
+        current_floor_index: 0,
+        turn_count: 0,
+        player: playerAt(1, 1),
         floor: {
           width: 3,
           height: 2,
@@ -307,7 +327,9 @@ describe("drawFloor", () => {
     drawFloor(
       ctx as unknown as CanvasRenderingContext2D,
       {
-        player: { position: [1, 1] },
+        current_floor_index: 0,
+        turn_count: 0,
+        player: playerAt(1, 1),
         floor: {
           width: 3,
           height: 2,
@@ -341,7 +363,9 @@ describe("drawFloor", () => {
     drawFloor(
       ctx as unknown as CanvasRenderingContext2D,
       {
-        player: { position: [40, 25] },
+        current_floor_index: 0,
+        turn_count: 0,
+        player: playerAt(40, 25),
         floor: {
           width: 80,
           height: 50,

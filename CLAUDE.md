@@ -274,6 +274,20 @@ modules otherwise.
   `preventDefault`s bound keys) and reads `sendAction` through a ref so it never re-binds.
   `GameScreen` mounts both halves (`useGameSocket` + `useKeyboardInput`); the path is dormant
   until start-game + auth (5.11/5.12) supply the socket's `sessionId`/`token`.
+  The **HUD** (task 5.8) lives in `frontend/src/hud/`, **HTML over canvas** — UI text is DOM
+  (Tailwind), never drawn into the 240×160 buffer. Pure display math/constants sit in
+  `hudModel.ts` beside the component, mirroring the `camera.ts`↔`GameCanvas.tsx` split
+  (component files export only components — react-refresh rule). Run-scoped read-model stats
+  live in the Zustand store, written **one atomic action per WS frame** (`startRun` /
+  `applyTurn` / `setLastError` / `resetRun` — never partial updates): `kills` is aggregated
+  client-side from `enemy_killed` turn events (the server keeps no counter; events are the
+  source of truth), `lastError` surfaces `error` frames and is cleared by the next good turn.
+  There is deliberately **no live score** (score is a game-over computation; `damage_taken`
+  never crosses the wire) — the HUD shows the score inputs (floor 1-based, kills, turns) —
+  and the inventory rack is structural-only until inventory ships on `PlayerState`. The
+  canvas is sized by **largest-fit integer scaling**: pure `largestIntegerScale` in
+  `camera.ts` (floored, clamped ≥1×) driven by a `ResizeObserver` in `GameCanvas` measuring
+  its container.
 - **Lint:** `pnpm lint` (ESLint, flat config `eslint.config.js`).
 - **Format:** `pnpm exec prettier --check .`
 - **Types:** `pnpm tsc --noEmit`.
