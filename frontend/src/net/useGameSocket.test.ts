@@ -142,7 +142,10 @@ describe("gameOverCause", () => {
 
   it("reads a death from its player_died event", () => {
     expect(
-      gameOverCause([{ type: "player_damaged", amount: 5 }, { type: "player_died" }]),
+      gameOverCause([
+        { type: "player_damaged", amount: 5 },
+        { type: "player_died" },
+      ]),
     ).toBe("died");
   });
 
@@ -431,7 +434,7 @@ describe("useGameSocket", () => {
 
   it("blanks any prior run's state and stats when starting to connect", () => {
     // Seed the store as if a previous run had left state behind.
-    act(() => useGameStore.getState().applyTurn(sampleState(9, 9), 6));
+    act(() => useGameStore.getState().applyTurn(sampleState(9, 9), 6, null));
 
     renderHook(() => useGameSocket({ sessionId: "game-2", token: "jwt" }));
 

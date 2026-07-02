@@ -79,7 +79,7 @@ describe("Hud", () => {
 
   it("shows the run stats: turns, kills, and combat stats", () => {
     useGameStore.getState().startRun(sampleState({ turns: 42 }));
-    useGameStore.getState().applyTurn(sampleState({ turns: 43 }), 5);
+    useGameStore.getState().applyTurn(sampleState({ turns: 43 }), 5, null);
     render(<Hud />);
 
     expect(screen.getByTestId("hud-turns")).toHaveTextContent("43");
@@ -110,7 +110,7 @@ describe("Hud", () => {
     // The next successful turn clears the error (store contract) — the HUD
     // must drop the warning, not keep a stale one on screen. The store update
     // re-renders the subscribed component; no rerender() needed.
-    act(() => useGameStore.getState().applyTurn(sampleState(), 0));
+    act(() => useGameStore.getState().applyTurn(sampleState(), 0, null));
     expect(screen.queryByTestId("hud-error")).not.toBeInTheDocument();
   });
 });
