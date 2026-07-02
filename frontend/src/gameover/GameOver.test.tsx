@@ -70,6 +70,14 @@ describe("GameOver", () => {
     expect(screen.queryByTestId("gameover")).not.toBeInTheDocument();
   });
 
+  it("announces itself as a modal dialog named by the headline", () => {
+    endRun("died");
+    renderGameOver();
+
+    const dialog = screen.getByRole("dialog", { name: "GAME OVER" });
+    expect(dialog).toHaveAttribute("aria-modal", "true");
+  });
+
   it("headlines a death as GAME OVER", () => {
     endRun("died");
     renderGameOver();

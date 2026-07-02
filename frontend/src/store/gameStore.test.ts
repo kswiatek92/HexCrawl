@@ -103,6 +103,26 @@ describe("useGameStore", () => {
       expect(useGameStore.getState().gameOverCause).toBeNull();
     });
 
+    it("a turn that beats startRun still self-normalises to playing", () => {
+      // Defensive: `idle` + a live gameState must be unrepresentable even if
+      // a turn frame arrives before the connected frame seeded the run.
+      useGameStore.getState().applyTurn(sampleState(1, 0), 0, null);
+
+      expect(useGameStore.getState().phase).toBe("playing");
+    });
+
+    it("game_over is sticky against a stray late turn", () => {
+      useGameStore.getState().startRun(sampleState(0, 0));
+      useGameStore.getState().applyTurn(sampleState(1, 1), 0, "died");
+
+      // The socket can't deliver this (server closes after game over), but
+      // the machine must not fall back to playing if something ever does.
+      useGameStore.getState().applyTurn(sampleState(1, 1), 0, null);
+
+      expect(useGameStore.getState().phase).toBe("game_over");
+      expect(useGameStore.getState().gameOverCause).toBe("died");
+    });
+
     it("an ordinary turn stays in playing", () => {
       useGameStore.getState().startRun(sampleState(0, 0));
       useGameStore.getState().applyTurn(sampleState(1, 0), 1, null);

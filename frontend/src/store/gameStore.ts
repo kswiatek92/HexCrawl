@@ -95,7 +95,11 @@ export const useGameStore = create<GameState>((set) => ({
       gameState,
       kills: s.kills + killsDelta,
       lastError: null,
-      phase: gameOver !== null ? "game_over" : s.phase,
+      // "A turn happened" implies a live run: `idle` self-normalises to
+      // `playing` (so `idle`+state is unrepresentable even if a turn beats
+      // `startRun`), and `game_over` is sticky — only startRun/resetRun leave it.
+      phase:
+        gameOver !== null || s.phase === "game_over" ? "game_over" : "playing",
       gameOverCause: gameOver !== null ? gameOver : s.gameOverCause,
     })),
   setLastError: (detail) => set({ lastError: detail }),

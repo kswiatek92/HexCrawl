@@ -52,11 +52,15 @@ export default function GameOver() {
   return (
     <div
       data-testid="gameover"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="gameover-title"
       className="absolute inset-0 z-10 flex items-center justify-center bg-slate-950/80"
     >
       <section className="w-72 space-y-4 rounded border border-slate-700 bg-slate-900 p-6 text-center text-sm">
         <header className="space-y-1">
           <h2
+            id="gameover-title"
             data-testid="gameover-title"
             className={`text-2xl font-bold tracking-widest ${
               cause === "died" ? "text-red-500" : "text-amber-400"
