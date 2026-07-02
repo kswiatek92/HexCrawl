@@ -161,7 +161,7 @@ Weeks/dates below are **remaining work projected from 2026-06-08** at 10 h/week.
 | 5.6 | `useGameSocket` hook | ✅ | ⬜ | K | Sends actions, receives state |
 | 5.7 | Keyboard input handler | ✅ | ⬜ | K | WASD / arrows / space |
 | 5.8 | HUD (HP, floor, score, inventory) | ✅ | ⬜ | K | HTML-over-canvas (`src/hud/`); kills client-counted from `enemy_killed` events (no live score on the wire — shown as floor/kills/turns); inventory rack structural until backend inventory ships; + largest-fit canvas scaling (5.3 deferral) |
-| 5.9 | Game over screen | 🔲 | ⬜ | K | 🎨 **screen layout** |
+| 5.9 | Game over screen | 🔄 | ⬜ | K | 🎨 **screen layout** |
 | 5.10 | Leaderboard page (global + weekly tabs) | 🔲 | ⬜ | K | 🎨 **page layout** |
 | 5.11 | Auth screens (login / register) | 🔲 | ⬜ | K | 🎨 **screen layout** |
 | 5.12 | Supabase JWT auth flow | 🔲 | ⬜ | K | |
