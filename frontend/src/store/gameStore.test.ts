@@ -33,6 +33,8 @@ describe("useGameStore", () => {
   it("starts idle with no run", () => {
     const s = useGameStore.getState();
     expect(s.status).toBe("idle");
+    expect(s.phase).toBe("idle");
+    expect(s.gameOverCause).toBeNull();
     expect(s.gameState).toBeNull();
     expect(s.kills).toBe(0);
     expect(s.lastError).toBeNull();
@@ -45,7 +47,7 @@ describe("useGameStore", () => {
 
   it("startRun seeds the state and zeroes a prior run's stats", () => {
     // Leftovers from a previous run: kills and a lingering error.
-    useGameStore.getState().applyTurn(sampleState(1, 1), 4);
+    useGameStore.getState().applyTurn(sampleState(1, 1), 4, null);
     useGameStore.getState().setLastError("unknown action 'jump'");
 
     const fresh = sampleState(3, 4);
@@ -61,12 +63,12 @@ describe("useGameStore", () => {
     useGameStore.getState().startRun(sampleState(0, 0));
 
     const mid = sampleState(1, 0);
-    useGameStore.getState().applyTurn(mid, 2);
+    useGameStore.getState().applyTurn(mid, 2, null);
     expect(useGameStore.getState().gameState).toEqual(mid);
     expect(useGameStore.getState().kills).toBe(2);
 
     const late = sampleState(2, 0);
-    useGameStore.getState().applyTurn(late, 1);
+    useGameStore.getState().applyTurn(late, 1, null);
     expect(useGameStore.getState().gameState).toEqual(late);
     expect(useGameStore.getState().kills).toBe(3);
   });
@@ -77,12 +79,12 @@ describe("useGameStore", () => {
       "frame must be a JSON object",
     );
 
-    useGameStore.getState().applyTurn(sampleState(1, 1), 0);
+    useGameStore.getState().applyTurn(sampleState(1, 1), 0, null);
     expect(useGameStore.getState().lastError).toBeNull();
   });
 
   it("resetRun blanks the run state, kills, and error", () => {
-    useGameStore.getState().applyTurn(sampleState(1, 1), 5);
+    useGameStore.getState().applyTurn(sampleState(1, 1), 5, null);
     useGameStore.getState().setLastError("boom");
 
     useGameStore.getState().resetRun();
@@ -91,5 +93,74 @@ describe("useGameStore", () => {
     expect(s.gameState).toBeNull();
     expect(s.kills).toBe(0);
     expect(s.lastError).toBeNull();
+  });
+
+  describe("run-lifecycle state machine (5.9)", () => {
+    it("startRun enters playing with no cause", () => {
+      useGameStore.getState().startRun(sampleState(0, 0));
+
+      expect(useGameStore.getState().phase).toBe("playing");
+      expect(useGameStore.getState().gameOverCause).toBeNull();
+    });
+
+    it("an ordinary turn stays in playing", () => {
+      useGameStore.getState().startRun(sampleState(0, 0));
+      useGameStore.getState().applyTurn(sampleState(1, 0), 1, null);
+
+      expect(useGameStore.getState().phase).toBe("playing");
+      expect(useGameStore.getState().gameOverCause).toBeNull();
+    });
+
+    it("a final turn flips to game_over with the cause, atomically", () => {
+      useGameStore.getState().startRun(sampleState(0, 0));
+
+      const final = sampleState(2, 2);
+      useGameStore.getState().applyTurn(final, 1, "died");
+
+      // One set(): the phase, cause, final state, and kills land together.
+      const s = useGameStore.getState();
+      expect(s.phase).toBe("game_over");
+      expect(s.gameOverCause).toBe("died");
+      expect(s.gameState).toEqual(final);
+      expect(s.kills).toBe(1);
+    });
+
+    it("records an abandoned run's cause", () => {
+      useGameStore.getState().startRun(sampleState(0, 0));
+      useGameStore.getState().applyTurn(sampleState(0, 0), 0, "abandoned");
+
+      expect(useGameStore.getState().phase).toBe("game_over");
+      expect(useGameStore.getState().gameOverCause).toBe("abandoned");
+    });
+
+    it("keeps the final stats readable after game over (no reset)", () => {
+      useGameStore.getState().startRun(sampleState(0, 0));
+      useGameStore.getState().applyTurn(sampleState(1, 0), 3, null);
+      useGameStore.getState().applyTurn(sampleState(1, 1), 1, "died");
+
+      // The game-over screen reads these; only resetRun/startRun may blank them.
+      expect(useGameStore.getState().gameState).not.toBeNull();
+      expect(useGameStore.getState().kills).toBe(4);
+    });
+
+    it("resetRun returns to idle and clears the cause", () => {
+      useGameStore.getState().startRun(sampleState(0, 0));
+      useGameStore.getState().applyTurn(sampleState(1, 1), 0, "died");
+
+      useGameStore.getState().resetRun();
+
+      expect(useGameStore.getState().phase).toBe("idle");
+      expect(useGameStore.getState().gameOverCause).toBeNull();
+    });
+
+    it("startRun after a game over clears the previous run's cause", () => {
+      useGameStore.getState().startRun(sampleState(0, 0));
+      useGameStore.getState().applyTurn(sampleState(1, 1), 0, "abandoned");
+
+      useGameStore.getState().startRun(sampleState(0, 0));
+
+      expect(useGameStore.getState().phase).toBe("playing");
+      expect(useGameStore.getState().gameOverCause).toBeNull();
+    });
   });
 });
