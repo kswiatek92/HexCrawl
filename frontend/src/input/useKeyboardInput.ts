@@ -75,16 +75,20 @@ function isEditableTarget(target: EventTarget | null): boolean {
 /**
  * Attach a window-level `keydown` listener that maps each press to a
  * `ClientAction` and sends it. The listener is bound once (keyed on `enabled`)
- * and reads `sendAction` through a ref refreshed every render, so it always
+ * and reads `sendAction` through a ref synced after every commit, so it always
  * calls the latest function without re-binding — robust even if the caller
- * passes a non-memoised `sendAction`.
+ * passes a non-memoised `sendAction`. The sync happens in an effect (not during
+ * render, which `react-hooks/refs` forbids); key events only ever fire after
+ * commit, so the listener never sees a stale ref.
  */
 export function useKeyboardInput(
   sendAction: (action: ClientAction) => void,
   { enabled = true }: UseKeyboardInputOptions = {},
 ): void {
   const sendActionRef = useRef(sendAction);
-  sendActionRef.current = sendAction;
+  useEffect(() => {
+    sendActionRef.current = sendAction;
+  });
 
   useEffect(() => {
     if (!enabled) return;
