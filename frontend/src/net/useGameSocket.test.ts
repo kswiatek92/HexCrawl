@@ -1,6 +1,11 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { buildGameSocketUrl, countKills, useGameSocket } from "./useGameSocket";
+import {
+  buildGameSocketUrl,
+  countKills,
+  gameOverCause,
+  useGameSocket,
+} from "./useGameSocket";
 import { useGameStore } from "../store/gameStore";
 import type { GameStateView } from "../types/gameState";
 
@@ -130,6 +135,25 @@ describe("countKills", () => {
   });
 });
 
+describe("gameOverCause", () => {
+  it("reads an abandoned run from its run_abandoned event", () => {
+    expect(gameOverCause([{ type: "run_abandoned" }])).toBe("abandoned");
+  });
+
+  it("reads a death from its player_died event", () => {
+    expect(
+      gameOverCause([
+        { type: "player_damaged", amount: 5 },
+        { type: "player_died" },
+      ]),
+    ).toBe("died");
+  });
+
+  it("falls back to died when the narrative names no ending", () => {
+    expect(gameOverCause([])).toBe("died");
+  });
+});
+
 describe("useGameSocket", () => {
   it("opens no socket until both session and token are present", () => {
     renderHook(() => useGameSocket({ sessionId: null, token: null }));
@@ -180,6 +204,86 @@ describe("useGameSocket", () => {
       ws.receive({ type: "turn", events: [], state: final, game_over: true }),
     );
     expect(useGameStore.getState().gameState).toEqual(final);
+  });
+
+  it("a final turn frame drives the run phase to game_over with its cause", () => {
+    renderHook(() => useGameSocket({ sessionId: "game-1", token: "jwt" }));
+    const ws = lastSocket();
+    act(() => ws.open());
+    act(() =>
+      ws.receive({
+        type: "connected",
+        game_id: "game-1",
+        state: sampleState(0, 0),
+      }),
+    );
+    expect(useGameStore.getState().phase).toBe("playing");
+
+    act(() =>
+      ws.receive({
+        type: "turn",
+        events: [
+          { type: "player_damaged", amount: 7 },
+          { type: "player_died" },
+        ],
+        state: sampleState(1, 0),
+        game_over: true,
+      }),
+    );
+
+    expect(useGameStore.getState().phase).toBe("game_over");
+    expect(useGameStore.getState().gameOverCause).toBe("died");
+  });
+
+  it("an abandoned run's final frame records the abandoned cause", () => {
+    renderHook(() => useGameSocket({ sessionId: "game-1", token: "jwt" }));
+    const ws = lastSocket();
+    act(() => ws.open());
+    act(() =>
+      ws.receive({
+        type: "connected",
+        game_id: "game-1",
+        state: sampleState(0, 0),
+      }),
+    );
+
+    act(() =>
+      ws.receive({
+        type: "turn",
+        events: [{ type: "run_abandoned" }],
+        state: sampleState(0, 0),
+        game_over: true,
+      }),
+    );
+
+    expect(useGameStore.getState().phase).toBe("game_over");
+    expect(useGameStore.getState().gameOverCause).toBe("abandoned");
+  });
+
+  it("an ordinary turn frame leaves the run phase in playing", () => {
+    renderHook(() => useGameSocket({ sessionId: "game-1", token: "jwt" }));
+    const ws = lastSocket();
+    act(() => ws.open());
+    act(() =>
+      ws.receive({
+        type: "connected",
+        game_id: "game-1",
+        state: sampleState(0, 0),
+      }),
+    );
+
+    act(() =>
+      ws.receive({
+        type: "turn",
+        // A death-less narrative with a kill: still not a game over.
+        events: [{ type: "enemy_killed", enemy_id: "e1" }],
+        state: sampleState(1, 0),
+        game_over: false,
+      }),
+    );
+
+    expect(useGameStore.getState().phase).toBe("playing");
+    expect(useGameStore.getState().gameOverCause).toBeNull();
   });
 
   it("counts enemy_killed events across turn frames into the kills stat", () => {
@@ -330,7 +434,7 @@ describe("useGameSocket", () => {
 
   it("blanks any prior run's state and stats when starting to connect", () => {
     // Seed the store as if a previous run had left state behind.
-    act(() => useGameStore.getState().applyTurn(sampleState(9, 9), 6));
+    act(() => useGameStore.getState().applyTurn(sampleState(9, 9), 6, null));
 
     renderHook(() => useGameSocket({ sessionId: "game-2", token: "jwt" }));
 
