@@ -288,6 +288,16 @@ modules otherwise.
   canvas is sized by **largest-fit integer scaling**: pure `largestIntegerScale` in
   `camera.ts` (floored, clamped ≥1×) driven by a `ResizeObserver` in `GameCanvas` measuring
   its container.
+  The **game over screen** (task 5.9) lives in `frontend/src/gameover/`, a DOM overlay over
+  the canvas (same HTML-over-canvas rule as the HUD, same `<x>Model.ts` split). It renders
+  off the store's **run-lifecycle state machine**: `phase` (`idle → playing → game_over`)
+  plus `gameOverCause` (`died`/`abandoned`, derived by the socket hook from the final
+  frame's `player_died`/`run_abandoned` events — there is no `game_over` *event* on the
+  wire, only the `TurnFrame.game_over` flag). `phase` is deliberately separate from the
+  socket's `ConnectionStatus` (a mid-run disconnect is `closed`+`playing`, not a game over)
+  and moves only in `startRun`/`applyTurn`/`resetRun` — never model a run state as ad-hoc
+  booleans. The screen shows the score inputs only (abandoned runs score nothing) and its
+  "New Run" is a store reset until start-game ships (5.11/5.12).
 - **Lint:** `pnpm lint` (ESLint, flat config `eslint.config.js`).
 - **Format:** `pnpm exec prettier --check .`
 - **Types:** `pnpm tsc --noEmit`.

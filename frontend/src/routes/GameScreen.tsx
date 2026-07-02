@@ -1,6 +1,7 @@
 import { useGameStore } from "../store/gameStore";
 import GameCanvas from "../render/GameCanvas";
 import Hud from "../hud/Hud";
+import GameOver from "../gameover/GameOver";
 import { useGameSocket } from "../net/useGameSocket";
 import { useKeyboardInput } from "../input/useKeyboardInput";
 
@@ -29,8 +30,10 @@ export default function GameScreen() {
           (its container is what the largest-fit integer scaling measures) and
           the HUD keeps its fixed rail. HTML over canvas, not drawn into it. */}
       <div className="flex items-start gap-4">
-        <div className="min-w-0 flex-1">
+        {/* `relative` anchors the game-over overlay (5.9) over the world. */}
+        <div className="relative min-w-0 flex-1">
           <GameCanvas gameState={gameState} />
+          <GameOver />
         </div>
         <Hud />
       </div>

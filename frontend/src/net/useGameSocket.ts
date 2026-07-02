@@ -21,7 +21,7 @@
  */
 
 import { useCallback, useEffect, useRef } from "react";
-import { useGameStore } from "../store/gameStore";
+import { useGameStore, type GameOverCause } from "../store/gameStore";
 import type {
   ClientAction,
   ServerFrame,
@@ -37,6 +37,23 @@ import type {
  */
 export function countKills(events: ReadonlyArray<TurnEventFrame>): number {
   return events.filter((event) => event.type === "enemy_killed").length;
+}
+
+/**
+ * Derive how a run ended from its final frame's event narrative (task 5.9).
+ *
+ * There is no `game_over` *event* on the wire — the flag lives on the frame
+ * and the cause on the events (`GameService` ends a run only via `PlayerDied`
+ * or `RunAbandoned`). Called only when `frame.game_over` is true; the death
+ * fallback covers a narrative that somehow carries neither event, so a run
+ * can never end causeless. Pure and exported for tests, like `countKills`.
+ */
+export function gameOverCause(
+  events: ReadonlyArray<TurnEventFrame>,
+): GameOverCause {
+  return events.some((event) => event.type === "run_abandoned")
+    ? "abandoned"
+    : "died";
 }
 
 interface UseGameSocketParams {
@@ -115,9 +132,14 @@ export function useGameSocket({
           startRun(frame.state);
           break;
         case "turn":
-          applyTurn(frame.state, countKills(frame.events));
-          // `game_over` ends the run server-side with a 1000 close, which lands
-          // in `onclose` below; no extra client action needed here.
+          // A final frame (`game_over: true`) carries the run's ending in its
+          // events; the store flips to `game_over` in the same action (5.9).
+          // The server then closes with 1000, which lands in `onclose` below.
+          applyTurn(
+            frame.state,
+            countKills(frame.events),
+            frame.game_over ? gameOverCause(frame.events) : null,
+          );
           break;
         case "error":
           // Recoverable bad-message reply: stored for the HUD to surface; the
