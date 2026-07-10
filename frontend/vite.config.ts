@@ -20,6 +20,11 @@ export default defineConfig({
       "/api": {
         target: PROXY_TARGET,
         changeOrigin: true,
+        // The backend mounts business routes at /v1 (no /api segment); /api
+        // exists only as the browser-side proxy prefix, so strip it here:
+        // /api/v1/leaderboard/global -> /v1/leaderboard/global. Prod serving
+        // (task 6.9, ALB) must apply the same strip.
+        rewrite: (path) => path.replace(/^\/api/, ""),
       },
       "/ws": {
         target: PROXY_TARGET,

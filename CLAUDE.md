@@ -233,7 +233,10 @@ modules otherwise.
 - **Dev proxy:** `vite.config.ts` proxies `/api` and `/ws` (`ws: true`) to the backend
   (default `http://localhost:8000`, `VITE_API_PROXY_TARGET` override) so the browser stays
   single-origin in dev — sidesteps CORS/cookie issues. Frontend↔backend calls go through these
-  prefixes, never a hard-coded backend origin.
+  prefixes, never a hard-coded backend origin. `/api` is **browser-side only**: the proxy
+  strips it (`rewrite`) because the backend mounts business routes at `/v1` with no `/api`
+  segment — client code fetches `/api/v1/...`. Prod serving (task 6.9, ALB) must apply the
+  same strip. `/ws` needs no rewrite (the WS router is mounted at the app root under `/ws`).
 - **TypeScript:** a single root `tsconfig.json` with `noEmit` (not the multi-project-reference
   template) so `pnpm tsc --noEmit` actually type-checks `src/`.
 - **Canvas rendering** (task 5.3) lives in `frontend/src/render/`, split three ways:
@@ -298,7 +301,18 @@ modules otherwise.
   and moves only in `startRun`/`applyTurn`/`resetRun` — never model a run state as ad-hoc
   booleans. The screen shows the score inputs only (abandoned runs score nothing) and its
   "New Run" is a store reset until start-game ships (5.11/5.12).
-- **Lint:** `pnpm lint` (ESLint, flat config `eslint.config.js`).
+  The **leaderboard page** (task 5.10) lives in `frontend/src/leaderboard/` (same
+  `<x>Model.ts` split; wire types mirror `LeaderboardResponse`/`LeaderboardEntry` in
+  `frontend/src/types/leaderboard.ts`) and sets the **HTTP data-fetching convention**: a
+  per-feature hook (`useLeaderboard`) around **raw `fetch`** — no React Query/SWR until the
+  app has enough endpoints to earn the dependency — returning an explicit
+  `loading | error | success` **discriminated union**, so components render every request
+  state (loading / error-with-retry / empty / data), never just the happy path. Each
+  effect run owns an `AbortController` aborted on cleanup (stale-response safety,
+  StrictMode-safe). One hook instance serves one fixed param set: to change it, remount the
+  consumer (`<Board key={period}>`) instead of mutating the prop — this keeps effects free
+  of synchronous `setState` (`react-hooks/set-state-in-effect` is an error under the
+  project's ESLint config); loading resets belong in event handlers (`retry`).
 - **Format:** `pnpm exec prettier --check .`
 - **Types:** `pnpm tsc --noEmit`.
 - **Tests:** `pnpm test -- --run --coverage` (Vitest + Testing Library, jsdom).
