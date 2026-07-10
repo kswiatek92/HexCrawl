@@ -27,7 +27,7 @@ dev = [
     "pytest-cov",
     "hypothesis",
     "testcontainers[postgres,redis]",
-    "httpx2>=2.4.0",
+    "httpx2>=2.5.0",
 ]
 
 [tool.ruff]
