@@ -13,9 +13,10 @@
  * the computed score lands — for deaths only, since an abandoned run scores
  * nothing (task 3.3).
  *
- * "New Run" only resets the store to `idle` for now: actual start-game
- * (POST /game/start) arrives with 5.11/5.12, the same dormant seam as the
- * socket's `sessionId: null`.
+ * "New Run": the screen itself only knows how to *clear* a run (store reset);
+ * actually minting the next one is `GameScreen`'s job (it owns the start-game
+ * request + socket params), passed in via `onNewRun` (task 5.12). The store
+ * fallback keeps the component renderable alone (tests, storybook-style use).
  */
 
 import { Link } from "react-router-dom";
@@ -36,7 +37,7 @@ function FinalStat({ label, value }: { label: string; value: number }) {
   );
 }
 
-export default function GameOver() {
+export default function GameOver({ onNewRun }: { onNewRun?: () => void }) {
   const phase = useGameStore((s) => s.phase);
   const cause = useGameStore((s) => s.gameOverCause);
   const gameState = useGameStore((s) => s.gameState);
@@ -93,7 +94,7 @@ export default function GameOver() {
 
         <button
           type="button"
-          onClick={resetRun}
+          onClick={onNewRun ?? resetRun}
           className="w-full rounded bg-emerald-600 px-4 py-2 font-semibold text-white hover:bg-emerald-500"
         >
           New Run
