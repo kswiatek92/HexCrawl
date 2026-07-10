@@ -117,18 +117,18 @@ describe("Leaderboard", () => {
     render(<Leaderboard />);
     await screen.findByTestId("leaderboard-empty");
 
-    fireEvent.click(screen.getByRole("tab", { name: "Weekly" }));
+    fireEvent.click(screen.getByRole("button", { name: "Weekly" }));
 
     expect(fetchMock).toHaveBeenLastCalledWith(
       "/api/v1/leaderboard/weekly",
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
-    expect(screen.getByRole("tab", { name: "Weekly" })).toHaveAttribute(
-      "aria-selected",
+    expect(screen.getByRole("button", { name: "Weekly" })).toHaveAttribute(
+      "aria-pressed",
       "true",
     );
-    expect(screen.getByRole("tab", { name: "Global" })).toHaveAttribute(
-      "aria-selected",
+    expect(screen.getByRole("button", { name: "Global" })).toHaveAttribute(
+      "aria-pressed",
       "false",
     );
     expect(await screen.findByTestId("leaderboard-row")).toHaveTextContent(

@@ -112,19 +112,17 @@ export default function Leaderboard() {
     <section className="space-y-4">
       <h1 className="text-2xl font-bold">Leaderboard</h1>
 
-      <div
-        role="tablist"
-        aria-label="Leaderboard period"
-        className="flex gap-2"
-      >
+      {/* Toggle buttons, not ARIA tabs: role="tab"/"tablist" promises the full
+          APG pattern (arrow-key nav, aria-controls, roving tabindex) these two
+          buttons don't implement — aria-pressed states the real semantics. */}
+      <div role="group" aria-label="Leaderboard period" className="flex gap-2">
         {LEADERBOARD_TABS.map((tab) => {
           const active = tab.period === period;
           return (
             <button
               key={tab.period}
               type="button"
-              role="tab"
-              aria-selected={active}
+              aria-pressed={active}
               onClick={() => setPeriod(tab.period)}
               className={`rounded px-4 py-1.5 font-semibold ${
                 active

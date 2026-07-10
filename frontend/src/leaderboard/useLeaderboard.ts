@@ -64,7 +64,13 @@ export function useLeaderboard(
         }
         return res.json() as Promise<LeaderboardResponse>;
       })
-      .then((body) => setQuery({ status: "success", entries: body.entries }))
+      .then((body) => {
+        // Abort only rejects *pending* work — a success handler already queued
+        // when cleanup ran would still fire, clobbering a retry's fresh
+        // loading state with stale data. Guard both settle paths.
+        if (controller.signal.aborted) return;
+        setQuery({ status: "success", entries: body.entries });
+      })
       .catch(() => {
         // An abort is this effect's own cleanup (tab switched / unmounted),
         // not a failure — and setting state after cleanup would be a leak.
