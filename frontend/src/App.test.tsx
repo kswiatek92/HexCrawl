@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router-dom";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { routes } from "./router";
 
 function renderAt(path: string) {
@@ -26,10 +26,20 @@ describe("App routing", () => {
   });
 
   it("renders the leaderboard screen at /leaderboard", () => {
-    renderAt("/leaderboard");
-    expect(
-      screen.getByRole("heading", { name: "Leaderboard" }),
-    ).toBeInTheDocument();
+    // The screen fetches on mount (5.10); keep the request in flight so this
+    // routing test never sees a post-assertion (un-acted) state update.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>().mockReturnValue(new Promise(() => {})),
+    );
+    try {
+      renderAt("/leaderboard");
+      expect(
+        screen.getByRole("heading", { name: "Leaderboard" }),
+      ).toBeInTheDocument();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it("renders the login screen at /login", () => {
