@@ -120,13 +120,13 @@ Rules:
 
 ## Phase 6 — Docker + AWS deploy
 
-- [ ] AWS region — `eu-west-1`, `us-east-1`, elsewhere? (task 6.5)
-- [ ] Secrets — AWS Secrets Manager, SSM Parameter Store, or env-only? (task 6.8)
-- [ ] Log aggregation — CloudWatch Logs only, or ship to Loki / Datadog? (task 6.8)
-- [ ] Metrics / alerting — CloudWatch alarms, Prometheus/Grafana, or nothing for v1? (task 6.8)
-- [ ] Monthly cost ceiling? (phase-wide)
-- [ ] Container registry — ECR or GHCR? (task 6.10)
-- [ ] Gunicorn vs Uvicorn workers behind ALB — which and how many? (task 6.3)
+- [x] AWS region — `eu-west-1`, `us-east-1`, elsewhere? (task 6.5) → **`eu-central-1` (Frankfurt).** Closest region to Poland → lowest demo latency; marginally pricier than `eu-west-1` but pennies at this scale, and every service the stack needs (ECS Fargate, RDS, ElastiCache, ALB, Route53, ACM) is available in both.
+- [x] Secrets — AWS Secrets Manager, SSM Parameter Store, or env-only? (task 6.8) → **SSM Parameter Store (SecureString).** Free at standard tier and first-class ECS integration (`secrets:` in the task definition pulls parameters into env vars). Secrets Manager costs $0.40/secret/month and its differentiator (automatic rotation) isn't needed — Supabase/JWT keys rotate manually anyway. Plain env-only would put secrets in the task definition JSON, which is visible to anyone with ECS read access.
+- [x] Log aggregation — CloudWatch Logs only, or ship to Loki / Datadog? (task 6.8) → **CloudWatch Logs only.** The `awslogs` driver is built into Fargate — zero extra infra — and structlog's JSON output is queryable with Logs Insights. Loki/Datadog is real operational surface v1 doesn't need.
+- [x] Metrics / alerting — CloudWatch alarms, Prometheus/Grafana, or nothing for v1? (task 6.8) → **Minimal CloudWatch alarms** — ALB 5xx rate, ECS service CPU/memory, RDS free storage. Nearly free, comes with the platform, and a better portfolio story than nothing. No Prometheus/Grafana for v1.
+- [x] Monthly cost ceiling? (phase-wide) → **~$50/month.** Ballpark for the minimal stack (ALB ~$20 + Fargate ~$10 + RDS `db.t4g.micro` ~$12 + ElastiCache `cache.t4g.micro` ~$12) lands ~$50–60 — estimates, not quotes. If real bills run over, the lever is tearing the stack down between demo periods (everything is rebuildable from IaC + migrations).
+- [x] Container registry — ECR or GHCR? (task 6.10) → **ECR.** Native ECS pull via the task execution role — no registry credentials to manage — and it's part of the AWS-deploy skill set this phase exists to teach. GHCR is cheaper for public images but adds cross-cloud auth friction.
+- [x] Gunicorn vs Uvicorn workers behind ALB — which and how many? (task 6.3) → **Gunicorn with uvicorn workers, 2 workers.** The standard prod shape for async FastAPI (and the 6.3 board note already says "gunicorn"): Gunicorn supervises and restarts workers; 2 workers fits a small Fargate task (0.25–0.5 vCPU). Scale out via more ECS tasks, not more workers per container.
 
 ---
 
