@@ -1,15 +1,15 @@
-# Keep the build context small: the daemon only needs the dependency manifests
-# and src/ (see Dockerfile). Everything below is either rebuilt inside the image,
-# host-specific, or irrelevant to the worker/beat runtime.
+# Keep the build context small: the daemon only needs the dependency manifests,
+# src/, and the Alembic migration tree (the image runs its own `alembic upgrade
+# head` — see Dockerfile). Everything below is either rebuilt inside the image,
+# host-specific, or irrelevant to the api/worker/beat runtime.
 .venv
 .git
 .github
 frontend
 tests
-alembic
 docs
 assets
-__pycache__
+**/__pycache__
 *.pyc
 .pytest_cache
 .mypy_cache

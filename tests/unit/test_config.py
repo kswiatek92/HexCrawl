@@ -131,3 +131,37 @@ def test_supabase_url_whitespace_stripped(monkeypatch: pytest.MonkeyPatch) -> No
     settings = Settings(_env_file=None)
 
     assert settings.supabase_issuer == "https://abc.supabase.co/auth/v1"
+
+
+def test_cors_origins_comma_separated_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    # The documented form (QUESTIONS.md task 3.4). Regression for the 6.3 bug:
+    # without NoDecode on the field, pydantic-settings JSON-decodes the env
+    # value *before* the validator runs, so any non-JSON string (even a single
+    # origin) raised SettingsError and this test would fail at construction.
+    monkeypatch.setenv("JWT_SECRET", "test-secret")
+    monkeypatch.setenv("CORS_ORIGINS", "https://a.example, https://b.example")
+
+    assert Settings(_env_file=None).cors_origins == [
+        "https://a.example",
+        "https://b.example",
+    ]
+
+
+def test_cors_origins_single_origin_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    # The exact value the prod compose passes (no comma at all).
+    monkeypatch.setenv("JWT_SECRET", "test-secret")
+    monkeypatch.setenv("CORS_ORIGINS", "http://localhost:5173")
+
+    assert Settings(_env_file=None).cors_origins == ["http://localhost:5173"]
+
+
+def test_cors_origins_json_list_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    # The JSON form stays supported: NoDecode turns off the built-in decoding,
+    # so the validator must (and does) handle it itself.
+    monkeypatch.setenv("JWT_SECRET", "test-secret")
+    monkeypatch.setenv("CORS_ORIGINS", '["https://a.example", "https://b.example"]')
+
+    assert Settings(_env_file=None).cors_origins == [
+        "https://a.example",
+        "https://b.example",
+    ]

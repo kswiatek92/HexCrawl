@@ -83,3 +83,13 @@ export interface GameStateView {
   player: PlayerView;
   floor: FloorView;
 }
+
+/**
+ * `POST /game/start` reply (task 5.12) — the same `GameStateResponse` wire
+ * shape, but here `game_id` is finally consumed: it is the `sessionId` the
+ * WS turn loop connects with (`/ws/game/{game_id}`), so it enters the mirror
+ * now per the subset rule above.
+ */
+export interface StartGameResponse extends GameStateView {
+  game_id: string;
+}

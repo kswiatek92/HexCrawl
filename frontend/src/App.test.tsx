@@ -1,18 +1,47 @@
 import { render, screen } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router-dom";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { routes } from "./router";
+import {
+  fakeAuth,
+  makeSession,
+  resetAuthStore,
+  resetFakeAuth,
+} from "./test/fakeSupabase";
+
+vi.mock("./auth/supabaseClient", async () => {
+  const { fakeSupabase } = await import("./test/fakeSupabase");
+  return { getSupabase: () => fakeSupabase };
+});
 
 function renderAt(path: string) {
   const router = createMemoryRouter(routes, { initialEntries: [path] });
   return render(<RouterProvider router={router} />);
 }
 
+beforeEach(() => {
+  resetFakeAuth();
+  resetAuthStore();
+});
+
 describe("App routing", () => {
-  it("renders the game screen at the index route", () => {
+  it("redirects the index route to login while signed out (5.11 guard)", async () => {
+    renderAt("/");
+    // getSession resolves to no session → the guard bounces to /login.
+    expect(
+      await screen.findByRole("heading", { name: "Account" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "HexCrawl" })).toBeNull();
+  });
+
+  it("renders the game screen at the index route when signed in", async () => {
+    fakeAuth.getSession.mockResolvedValue({
+      data: { session: makeSession() },
+      error: null,
+    });
     renderAt("/");
     expect(
-      screen.getByRole("heading", { name: "HexCrawl" }),
+      await screen.findByRole("heading", { name: "HexCrawl" }),
     ).toBeInTheDocument();
   });
 
@@ -42,8 +71,12 @@ describe("App routing", () => {
     }
   });
 
-  it("renders the login screen at /login", () => {
+  it("renders the auth screen at /login", async () => {
     renderAt("/login");
-    expect(screen.getByRole("heading", { name: "Login" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Account" }),
+    ).toBeInTheDocument();
+    // Session restore resolves signed-out → the login/register form shows.
+    expect(await screen.findByLabelText("Email")).toBeInTheDocument();
   });
 });

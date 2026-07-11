@@ -163,10 +163,10 @@ Weeks/dates below are **remaining work projected from 2026-06-08** at 10 h/week.
 | 5.6 | `useGameSocket` hook | ✅ | ⬜ | K | Sends actions, receives state |
 | 5.7 | Keyboard input handler | ✅ | ⬜ | K | WASD / arrows / space |
 | 5.8 | HUD (HP, floor, score, inventory) | ✅ | ⬜ | K | HTML-over-canvas (`src/hud/`); kills client-counted from `enemy_killed` events (no live score on the wire — shown as floor/kills/turns); inventory rack structural until backend inventory ships; + largest-fit canvas scaling (5.3 deferral) |
-| 5.9 | Game over screen | ✅ | ⬜ | K | 🎨 DOM overlay over the canvas (`src/gameover/`); run lifecycle as an explicit store state machine (`phase`: idle→playing→game_over, cause from `player_died`/`run_abandoned` events); shows score inputs only (no score on the wire; abandoned runs score nothing); New Run = store reset until start-game ships (5.11/5.12) |
+| 5.9 | Game over screen | ✅ | ⬜ | K | 🎨 DOM overlay over the canvas (`src/gameover/`); run lifecycle as an explicit store state machine (`phase`: idle→playing→game_over, cause from `player_died`/`run_abandoned` events); shows score inputs only (no score on the wire; abandoned runs score nothing); New Run mints a fresh run via `onNewRun` from GameScreen (since 5.12) |
 | 5.10 | Leaderboard page (global + weekly tabs) | ✅ | ⬜ | K | 🎨 `src/leaderboard/` feature folder (model split); raw-fetch hook with explicit loading/error/empty/success states + abort-on-cleanup; tabs remount the board per period; added the missing `/api`→`/v1` proxy rewrite (first HTTP consumer) |
-| 5.11 | Auth screens (login / register) | 🔲 | ⬜ | K | 🎨 **screen layout** |
-| 5.12 | Supabase JWT auth flow | 🔲 | ⬜ | K | |
+| 5.11 | Auth screens (login / register) | ✅ | ⬜ | K | 🎨 `src/auth/` feature folder (model split); login/register over the Supabase SDK with explicit submit states (incl. needs-confirmation); `RequireAuth` guards the game route (UX-only — server re-verifies); leaderboard stays public |
+| 5.12 | Supabase JWT auth flow | ✅ | ⬜ | K | Session in Zustand `authStore` (loading\|signed_out\|signed_in), fed by `useAuthListener` (getSession restore + onAuthStateChange incl. TOKEN_REFRESHED); SDK-default localStorage + autoRefresh; `useStartGame` POSTs `/game/start` with the bearer token → `game_id`+token light up the WS seam — **game playable end-to-end (M5)** |
 | 📝 | **Phase 5 quiz** | — | ⬜ | K | Must pass before Phase 6 |
 
 > 🎨 **Design assets needed.** Rows marked 🎨 need pixel art / UI mockups produced (or sourced)
@@ -200,9 +200,9 @@ Weeks/dates below are **remaining work projected from 2026-06-08** at 10 h/week.
 
 | # | Task | Status | Quiz | Who | Notes |
 |---|------|--------|------|-----|-------|
-| 6.1 | `Dockerfile` for FastAPI (multi-stage) | 🔲 | ⬜ | K | |
-| 6.2 | `Dockerfile` for Celery worker | 🔲 | ⬜ | K | Same image, different CMD |
-| 6.3 | `docker-compose.prod.yml` | 🔲 | ⬜ | K | No hot reload, gunicorn |
+| 6.1 | `Dockerfile` for FastAPI (multi-stage) | ✅ | ⬜ | K | uv builder → bare `python:3.12-slim` runtime (234 MB), non-root, alembic ships in-image; default CMD = gunicorn + 2 uvicorn workers (`uvicorn-worker` pkg — `uvicorn.workers` is deprecated) |
+| 6.2 | `Dockerfile` for Celery worker | ✅ | ⬜ | K | Same image, different CMD (worker/beat/migrate override in Compose); beat's schedule DB → `/tmp` (non-root can't write /app) |
+| 6.3 | `docker-compose.prod.yml` | ✅ | ⬜ | K | No hot reload, gunicorn; env-only config with `${VAR:?}` fail-fast, `migrate` one-shot gates DB consumers, /health healthcheck, mem limits; surfaced+fixed the CORS_ORIGINS env-parsing bug (NoDecode) |
 | 6.4 | GitHub Actions CI — Python (ruff + black + mypy + pytest/cov) | ✅ | ⬜ | K | `.github/workflows/python.yml`, Postgres + Redis services, cov ≥ 80% |
 | 6.4a | GitHub Actions CI — Frontend (eslint + prettier + tsc + vitest + build) | ✅ | ⬜ | K | `.github/workflows/frontend.yml`, guarded by `frontend/package.json` preflight |
 | 6.4b | Dependabot config (pip + npm + actions + docker) | ✅ | ⬜ | K | `.github/dependabot.yml` |

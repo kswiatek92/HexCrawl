@@ -1,5 +1,8 @@
+import json
+from typing import Annotated
+
 from pydantic import field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -18,7 +21,12 @@ class Settings(BaseSettings):
     supabase_jwt_audience: str = "authenticated"
     supabase_storage_saves_bucket: str = "saves"
     supabase_storage_avatars_bucket: str = "avatars"
-    cors_origins: list[str] = ["http://localhost:5173"]
+    # NoDecode is load-bearing: pydantic-settings JSON-decodes complex fields
+    # *at the env source*, before any validator runs — so without it,
+    # CORS_ORIGINS=https://a,https://b dies with a SettingsError and the
+    # validator below never gets a say (found by the prod compose, task 6.3,
+    # the first environment to actually set the variable; see BUGS.md).
+    cors_origins: Annotated[list[str], NoDecode] = ["http://localhost:5173"]
 
     @field_validator("cors_origins", mode="before")
     @classmethod
@@ -27,11 +35,16 @@ class Settings(BaseSettings):
 
         pydantic-settings v2 requires JSON for list[str] by default, which
         means CORS_ORIGINS=https://a,https://b would raise a ValidationError.
-        This validator makes the comma-separated form valid too, matching the
-        documented decision in QUESTIONS.md (task 3.4).
+        NoDecode on the field hands the raw env string here instead; this
+        validator then supports both forms, matching the documented decision
+        in QUESTIONS.md (task 3.4). NoDecode also disables the built-in JSON
+        parsing, so the JSON-list form is decoded here too.
         """
         if isinstance(v, str):
-            return [o.strip() for o in v.split(",") if o.strip()]
+            text = v.strip()
+            if text.startswith("["):
+                return json.loads(text)
+            return [o.strip() for o in text.split(",") if o.strip()]
         return v
 
     def _supabase_base_url(self) -> str:
