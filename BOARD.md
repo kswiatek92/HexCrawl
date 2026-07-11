@@ -33,6 +33,8 @@ Total: **78 tasks across 6 phases, ~84 sessions, ~17 weeks (~4 months) end-to-en
 Anchored forward from **2026-06-08**. As of **2026-06-24**: **48/78 tasks done** (Phases 1–3 complete; three CI tasks done early in Phase 6). Remaining: **30 tasks**, ~**8 weeks (~2 months)** → target completion **late August–early September 2026**. Phases 1–3 all closed ahead of estimate — the M3 backend-MVP milestone landed ~2–3 weeks early. (Note: the prior count of "43/77, Phase 3 at 10/15" undercounted Phase 3 by one — the table had 11 done at 3.11; corrected here.)
 
 > ⚠️ Task counts and "done" figures are real (counted from the tables below). The **Sessions / Weeks / Target** columns are estimates, not commitments — adjust as real velocity lands.
+>
+> 📋 **2026-07-11:** Phase 7 (audit remediation, 20 tasks) added from the `/audit` run — **not** counted in the original 78/6-phase totals above. It is an independent phase: its tasks have no ordering dependency on Phases 4–6 and can be interleaved at will. The three 🔴 tasks (7.1–7.3) gate the M3 claim "scores persist" actually holding end-to-end.
 
 ---
 
@@ -215,6 +217,51 @@ Weeks/dates below are **remaining work projected from 2026-06-08** at 10 h/week.
 
 ---
 
+## Phase 7 — Audit remediation (2026-07-11)
+> Source: `/audit` run 2026-07-11 — **45 findings** (3 critical, 12 warnings, 30 info) mapped to the
+> **20 tasks** below: 3 🔴 critical, 11 🟠 warnings (finding W7 is folded into task 7.1), and 6 🔵 info
+> batches covering the 30 info findings (2 of which are documented-accepted trade-offs carrying no
+> action). **Independent phase** — every task is self-contained and can be picked up regardless of
+> Phase 4–6 progress or ordering. No phase-gate quiz requirement between this and other phases.
+
+### Critical — unwired pipelines (the documented core loop cannot run end-to-end)
+
+| # | Task | Status | Quiz | Who | Notes |
+|---|------|--------|------|-----|-------|
+| 7.1 | 🔴 Wire `SubmitScore` on game-over | 🔲 | ⬜ | K | WS handler (`entrypoints/ws/router_game.py:184`) closes without scoring; `SubmitScore` has zero production callers. Aggregate `kills` **server-side** from `EnemyKilled` events across the run (add a counter to `Dungeon` or per-run event log — never trust a client-sent count), derive `abandoned` from `RunAbandoned`, call inside the per-turn UoW in `GameSessionRunner` with `PostgresScoreRepository` + `CeleryScoreRecalcQueue` |
+| 7.2 | 🔴 Enemy + item spawn service | 🔲 | ⬜ | K | Generator emits `enemies=[]`, `items={}` (`dungeon_generator.py:145`) and nothing downstream populates them — combat/death/non-zero scores unreachable; `enemy_ai`/`fov`/sprites are test-only. Seeded from `(seed, floor_index)` for determinism; exclude the player spawn tile |
+| 7.3 | 🔴 Floor progression + deep-floor pre-gen wiring | 🔲 | ⬜ | K | `Descend` always rejects `no_next_floor` (`start_game.py:111` builds `floors=[floor0]`; nothing appends). Generate next floor on descend: shallow inline, floors ≥ new `DEEP_FLOOR_THRESHOLD = 10` via `IMapGenerationQueue` (currently zero consumers) with cache-miss inline fallback splicing `deserialize_floor` into `dungeon.floors` |
+
+### Warnings — state integrity, resilience, hygiene
+
+| # | Task | Status | Quiz | Who | Notes |
+|---|------|--------|------|-----|-------|
+| 7.4 | 🟠 Terminal run status + guard | 🔲 | ⬜ | K | No `ACTIVE/DEAD/ABANDONED` status anywhere; dead/abandoned runs are resumable and abandon is replayable. Add status to model + persistence; reject in `ProcessTurn` and at WS connect (`GameAlreadyOverError` → 1008/409); unit + reconnect-after-death WS tests. Do before/with 7.1 |
+| 7.5 | 🟠 Per-game concurrency guard | 🔲 | ⬜ | K | GET→mutate→SET race in `process_turn.py:87` / `abandon_game.py:85`: two sockets on one game (or abandon vs turn) silently lose writes. Redis `SET NX` lock or blob version counter — or enforce one active socket per game id |
+| 7.6 | 🟠 Publish cache after PG commit | 🔲 | ⬜ | K | `cache.set` runs before `session.begin()` exits (`dependencies.py:200-226`), so a failed commit leaves Redis ahead of PG for 2h (phantom runs from `StartGame` too). Move cache publish after the transaction block; fix the misleading "durable save goes first" comments in `process_turn.py:92` |
+| 7.7 | 🟠 Corrupt cache blob → PG fallback | 🔲 | ⬜ | K | `deserialize_game_state` raises uncaught in all 3 loaders (`process_turn.py:110`, `get_game.py:90`, `abandon_game.py:109`) → run bricked until TTL. Catch `(KeyError, ValueError, TypeError)`, log, fall through to checkpoint — mirror `get_leaderboard.py:62` |
+| 7.8 | 🟠 Weekly archive gap recovery | 🔲 | ⬜ | K | `archive_completed_week` only archives `current_week_start − 7d` (`score_admin_repository.py:56`); Beat down over a Monday = week lost forever, contradicting the module's own "caught by the following Monday" claim. Walk forward from `MAX(week_start) + 7d`, or log loudly on gap |
+| 7.9 | 🟠 Handle binary WS frames | 🔲 | ⬜ | K | Binary frame → `KeyError` from Starlette `receive_json`, uncaught at `ws/router_game.py:111`/`:147` → traceback + dead connection, pre-auth. Catch `KeyError` or use `receive_text()` + `json.loads` |
+| 7.10 | 🟠 `BehaviourType` dispatch `match` | 🔲 | ⬜ | K | `decide_action` never reads `enemy.behaviour` (`enemy_ai.py:68-103`) — the documented "seam" is prose-only; a 4th type silently gets melee. Add exhaustive `match enemy.behaviour:` (arms may share melee logic) so mypy enforces it, like `game_service.py:138` |
+| 7.11 | 🟠 Delete dead config | 🔲 | ⬜ | K | `jwt_secret` is *required* but read nowhere (auth is JWKS-asymmetric); also unused: `supabase_anon_key`, `supabase_service_role_key`, both storage buckets (`config.py:12-20`). Remove from Settings, `.env.example`, `docker-compose.yml:14`, CLAUDE.md env table |
+| 7.12 | 🟠 Real e2e WS test (or fix docs) | 🔲 | ⬜ | K | `tests/e2e/ws/` holds only `__init__.py` vs CLAUDE.md's testing tree; `test_game_ws.py` is in-process + `FakeRunner`. Either one real test (uvicorn + real socket + testcontainers, real `GameSessionRunner`) or delete `tests/e2e/` and amend CLAUDE.md |
+| 7.13 | 🟠 Test the real UoW boundary | 🔲 | ⬜ | K | `dependencies.py` at 56%: `get_session` + `GameSessionRunner.load_authorized/process` (the only place commits happen, ADR-0006) executed by no test; `FakeRunner` can drift. Integration test over testcontainers or unit test with fake sessionmaker (pattern: `test_weekly_leaderboard_reset.py:110`) |
+| 7.14 | 🟠 Create `BUGS.md` | 🔲 | ⬜ | K | Listed in CLAUDE.md learning artifacts, never created. Seed with symptom/root-cause/fix/lesson entries from 7.6 and 7.8 |
+
+### Info — batched cleanups (each row = one small PR)
+
+| # | Task | Status | Quiz | Who | Notes |
+|---|------|--------|------|-----|-------|
+| 7.15 | 🔵 Docs reconciliation pass | 🔲 | ⬜ | K | CLAUDE.md: score formula stale (code = `floors² × kills × mult − penalty`, per BOARD 1.7); "explicit save" trigger doesn't exist (implement or strike); API table missing `/v1` prefix note; Celery row `weekly_leaderboard` → `weekly_leaderboard_reset`; diagram/repo-layout drift (undiagrammed app modules, `fov.py`/`spawn.py`, `adapters→application` task arrow, tests-tree); add `CORS_ORIGINS` to `.env.example` + env table |
+| 7.16 | 🔵 Security hardening batch | 🔲 | ⬜ | K | Set `--ws-max-size` (few KiB) in launch/Dockerfile; post-auth WS idle timeout; `allow_credentials=False` + narrow `allow_headers` (`main.py:112`); per-user active-run cap on `POST /game/start`. (403/404 existence leak + JWKS→401 are documented-accepted — no action) |
+| 7.17 | 🔵 Gameplay/WS niggles | 🔲 | ⬜ | K | Skip enemy-AI round on `FloorDescended` turn (free hit on new floor, `game_service.py:156,274`); `spawn_position` excludes enemy tiles (`spawn.py:26`); WS connect-path infra faults → deliberate 1011 (`ws/router_game.py:83,91`); `asyncio.to_thread` BSP in `StartGame` when 7.3 multiplies generation |
+| 7.18 | 🔵 Test refinements | 🔲 | ⬜ | K | Inject "now" into weekly-window integration tests (Monday-boundary flake); unit mapper test for `score_admin_repository`; cover `game_service.py` defensive branches (:312-316, :343-345, :422 via `ai_decide` seam); Protocol-conformance tests for the 3 untested ports; fake timers for `GameCanvas.test.tsx` flush |
+| 7.19 | 🔵 Dead-weight cleanup | 🔲 | ⬜ | K | Drop wire parsing for `PickUp`/`UseItem`/`Open` until they ship (or keep with comment); underscore `compute_fov` (only `has_los` consumes it); trim `domain/services/__init__.py` `__all__` (5 unconsumed exports); make `TILE_URLS`/`ENEMY_URLS` module-private; replace empty `/v1/auth` router include with a comment in `main.py` |
+| 7.20 | 🔵 Constants & schema | 🔲 | ⬜ | K | Derive `PREGEN_FLOOR_TTL_SECONDS` from `GAME_STATE_TTL_SECONDS` (or document independence); single-source the `±2**63` seed bounds (`schemas.py` ← `start_game.py`); composite index `(user_id, value DESC, computed_at ASC)` for `/leaderboard/me` when a load target exists |
+| 📝 | **Phase 7 quiz** | — | ⬜ | K | Quizzes currently disabled — owed on re-enable |
+
+---
+
 ## Backlog / Ideas
 
 ### Gameplay
@@ -247,4 +294,4 @@ _(move tasks here as they complete)_
 
 ---
 
-*Last updated: 2026-06-24 — Krzysztof*
+*Last updated: 2026-07-11 — Phase 7 (audit remediation) added from `/audit` findings*
