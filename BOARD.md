@@ -218,9 +218,11 @@ Weeks/dates below are **remaining work projected from 2026-06-08** at 10 h/week.
 ---
 
 ## Phase 7 — Audit remediation (2026-07-11)
-> Source: `/audit` run 2026-07-11 (3 critical, 12 warnings, 30 info). **Independent phase** — every
-> task is self-contained and can be picked up regardless of Phase 4–6 progress or ordering. No
-> phase-gate quiz requirement between this and other phases. Severity tags: 🔴 critical, 🟠 warning, 🔵 info.
+> Source: `/audit` run 2026-07-11 — **45 findings** (3 critical, 12 warnings, 30 info) mapped to the
+> **20 tasks** below: 3 🔴 critical, 11 🟠 warnings (finding W7 is folded into task 7.1), and 6 🔵 info
+> batches covering the 30 info findings (2 of which are documented-accepted trade-offs carrying no
+> action). **Independent phase** — every task is self-contained and can be picked up regardless of
+> Phase 4–6 progress or ordering. No phase-gate quiz requirement between this and other phases.
 
 ### Critical — unwired pipelines (the documented core loop cannot run end-to-end)
 
