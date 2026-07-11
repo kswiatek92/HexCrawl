@@ -180,6 +180,7 @@ function AuthForm() {
 
           <button
             type="submit"
+            data-testid="auth-submit"
             disabled={submit.status === "submitting"}
             className="rounded bg-emerald-600 px-4 py-1.5 font-semibold text-white hover:bg-emerald-500 disabled:opacity-50"
           >

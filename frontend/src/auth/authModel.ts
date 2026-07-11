@@ -36,7 +36,10 @@ export const MIN_PASSWORD_LENGTH = 6;
  * email (non-empty + an "@"): real deliverability is proven by the
  * confirmation email, and stricter regexes reject valid addresses.
  */
-export function validateCredentials(email: string, password: string): string | null {
+export function validateCredentials(
+  email: string,
+  password: string,
+): string | null {
   if (email.trim() === "" || !email.includes("@")) {
     return "Enter a valid email address.";
   }
