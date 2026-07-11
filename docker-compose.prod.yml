@@ -1,0 +1,141 @@
+# Production-parity stack (task 6.3) — the local rehearsal of the ECS deploy:
+# every Python role runs containerised from the ONE production image
+# (Dockerfile, tasks 6.1/6.2), config arrives strictly via environment
+# (twelve-factor: same image in every environment, only the env differs),
+# and nothing hot-reloads or bind-mounts source.
+#
+#   docker compose --env-file .env.prod -f docker-compose.prod.yml up --build
+#
+# Differences from the dev compose, deliberately:
+#   - the API runs here too (dev runs it on the host via uvicorn --reload),
+#     under gunicorn with 2 uvicorn workers — process supervision + one async
+#     event loop per worker; scale out with more containers, not more workers.
+#   - no default credentials: `${VAR:?}` makes Compose fail fast when a secret
+#     is missing instead of booting with a guessable dev value.
+#   - healthchecks + `restart: always` + memory limits on the long-running
+#     services. `restart` only papers over crashes (a crash-loop stays a
+#     crash-loop); the real orchestrator (ECS, task 6.8) supersedes it with
+#     health-based replacement and routing.
+#   - a one-shot `migrate` service runs `alembic upgrade head` before the DB
+#     consumers start — the image migrates itself; no host tooling needed.
+#
+# The frontend is NOT served here: its production story (static build behind
+# the ALB with the /api → /v1 strip) lands with task 6.9.
+#
+# Postgres/Redis run as containers to keep the rehearsal self-contained; the
+# real deploy replaces them with RDS (6.6) and ElastiCache (6.7) by swapping
+# DATABASE_URL / REDIS_URL — which is exactly what env-only config buys.
+
+x-app-base: &app-base
+  build: .
+  image: hexcrawl:prod
+  restart: always
+  environment: &app-env
+    JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+    DATABASE_URL: postgresql+asyncpg://hexcrawl:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/hexcrawl
+    REDIS_URL: redis://redis:6379/0
+    CELERY_BROKER_URL: redis://redis:6379/1
+    CELERY_RESULT_BACKEND: redis://redis:6379/2
+    SUPABASE_URL: ${SUPABASE_URL:?SUPABASE_URL is required}
+    SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-}
+    SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:-}
+    CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173}
+  deploy:
+    resources:
+      limits:
+        memory: 512M
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: hexcrawl
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: hexcrawl
+    volumes:
+      - pgdata-prod:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hexcrawl -d hexcrawl"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: always
+    # No published port: only the app containers need it, over the compose
+    # network. (Dev publishes 5432 for the host-run API; prod has none.)
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: always
+
+  # One-shot: bring the schema to head, then exit 0. Runs before anything
+  # that touches Postgres. Alembic's env.py builds a sync engine from
+  # DATABASE_URL, so the async URL works unchanged.
+  migrate:
+    <<: *app-base
+    restart: "no"
+    command: alembic upgrade head
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    <<: *app-base
+    # No command: the image's default CMD *is* the production API server
+    # (gunicorn + 2 uvicorn workers). Published on loopback — in the real
+    # deploy the ALB (task 6.9) fronts this port instead.
+    ports:
+      - "127.0.0.1:8000:8000"
+    healthcheck:
+      # /health sits outside /v1 (infra endpoint). Stdlib urllib because the
+      # slim image ships no curl/wget; exit 1 → unhealthy → the orchestrator
+      # restarts the container / pulls it from routing.
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+  # Celery worker — consumes score_recalc / map_generation / the weekly reset;
+  # needs both Postgres and Redis (see docker-compose.yml for the task↔store
+  # matrix). Gated on migrate so it never sees a pre-head schema.
+  worker:
+    <<: *app-base
+    command: celery -A src.adapters.tasks.celery_app worker --loglevel=info
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+  # Celery Beat — the schedule publisher (weekly reset, Mon 00:00 UTC).
+  # MUST stay a singleton: two Beat instances dispatch every job twice.
+  # Never `--scale beat`.
+  # --schedule under /tmp: Beat persists its bookkeeping DB next to CWD by
+  # default, but /app is root-owned and the image runs non-root (6.1). The
+  # file is derived state (rebuilt from the configured schedule on boot), so
+  # the ephemeral tmpfs is the right home for it.
+  beat:
+    <<: *app-base
+    command: celery -A src.adapters.tasks.celery_app beat --loglevel=info --schedule /tmp/celerybeat-schedule
+    depends_on:
+      redis:
+        condition: service_healthy
+
+volumes:
+  pgdata-prod:

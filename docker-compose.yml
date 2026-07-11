@@ -68,7 +68,10 @@ services:
   # dispatch every job twice. Never run more than one — do not `--scale beat`.
   beat:
     <<: *celery-base
-    command: celery -A src.adapters.tasks.celery_app beat --loglevel=info
+    # --schedule under /tmp: the shared image runs non-root (task 6.1), so
+    # Beat can't write its bookkeeping DB into /app; the file is derived
+    # state, rebuilt from the configured schedule on every boot.
+    command: celery -A src.adapters.tasks.celery_app beat --loglevel=info --schedule /tmp/celerybeat-schedule
     depends_on:
       redis:
         condition: service_healthy
