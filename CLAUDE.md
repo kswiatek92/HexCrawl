@@ -390,6 +390,17 @@ uv run celery -A src.adapters.tasks.celery_app beat --loglevel=info
 > (one image, command-per-role). **Beat must stay a singleton** — never scale it,
 > or every scheduled job dispatches twice.
 
+### All-in-Docker dev (no host toolchain)
+
+`docker compose up --build` runs the **entire** stack containerised — postgres, redis,
+a one-shot `migrate`, the API (`uvicorn --reload` on :8000), worker, beat, and the Vite
+dev server (browse http://localhost:5173). Nothing lands on the host: `./src` and
+`./frontend` are bind-mounted (backend hot-reloads, frontend gets HMR — no rebuilds),
+while `node_modules` **and the pnpm store** live in named volumes shadowing the host
+tree. `VITE_SUPABASE_*` still come from `frontend/.env` (bind-mounted); `SUPABASE_URL`
+passes through from the shell / root `.env` for JWT verification. Worker/beat don't
+auto-reload — `docker compose restart worker beat` after backend changes they run.
+
 ### Production containers (tasks 6.1–6.3)
 
 The root `Dockerfile` is **multi-stage**: a uv builder (lockfile-first layer order,
