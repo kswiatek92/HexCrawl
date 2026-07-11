@@ -275,8 +275,14 @@ modules otherwise.
   cover combat, so no separate attack/descend/pickup keys) sits beside the `useKeyboardInput`
   hook, which owns a `window` `keydown` listener (drops OS key-repeat, ignores editable targets,
   `preventDefault`s bound keys) and reads `sendAction` through a ref so it never re-binds.
-  `GameScreen` mounts both halves (`useGameSocket` + `useKeyboardInput`); the path is dormant
-  until start-game + auth (5.11/5.12) supply the socket's `sessionId`/`token`.
+  `GameScreen` mounts both halves (`useGameSocket` + `useKeyboardInput`) and, since 5.12,
+  supplies them: the Supabase session's `access_token` plus the `game_id` minted by
+  **`useStartGame`** (`src/net/`, beside the socket hook — the HTTP half of the run
+  lifecycle: `POST /api/v1/game/start` with the bearer token; a *mutation*, so it fires from
+  an event handler with a ref-based double-submit guard — no effect, no abort dance — and
+  returns an explicit `idle|starting|error|started` union; `player_name` derives from the
+  email local part until a profile feature exists). `GameOver`'s "New Run" delegates upward
+  via `onNewRun`: GameScreen resets both machines and mints a fresh run.
   The **HUD** (task 5.8) lives in `frontend/src/hud/`, **HTML over canvas** — UI text is DOM
   (Tailwind), never drawn into the 240×160 buffer. Pure display math/constants sit in
   `hudModel.ts` beside the component, mirroring the `camera.ts`↔`GameCanvas.tsx` split
@@ -300,7 +306,7 @@ modules otherwise.
   socket's `ConnectionStatus` (a mid-run disconnect is `closed`+`playing`, not a game over)
   and moves only in `startRun`/`applyTurn`/`resetRun` — never model a run state as ad-hoc
   booleans. The screen shows the score inputs only (abandoned runs score nothing) and its
-  "New Run" is a store reset until start-game ships (5.11/5.12).
+  "New Run" delegates to GameScreen via `onNewRun` (5.12), which resets and mints a new run.
   The **leaderboard page** (task 5.10) lives in `frontend/src/leaderboard/` (same
   `<x>Model.ts` split; wire types mirror `LeaderboardResponse`/`LeaderboardEntry` in
   `frontend/src/types/leaderboard.ts`) and sets the **HTTP data-fetching convention**: a
@@ -313,6 +319,21 @@ modules otherwise.
   consumer (`<Board key={period}>`) instead of mutating the prop — this keeps effects free
   of synchronous `setState` (`react-hooks/set-state-in-effect` is an error under the
   project's ESLint config); loading resets belong in event handlers (`retry`).
+  **Auth** (tasks 5.11/5.12) lives in `frontend/src/auth/` (same `<x>Model.ts` split): the
+  whole credential flow is the **Supabase JS SDK** — ADR-0007, the backend only *verifies*
+  bearer JWTs. `supabaseClient.ts` is a **lazy fail-loud singleton** (`getSupabase()`)
+  over `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY` (anon key is public-by-design;
+  service_role must never enter `frontend/`); lazy so tests can `vi.mock` the seam — the
+  shared `test/fakeSupabase.ts` double is the way (mock our seam, never the network).
+  Session state follows the store rules: `authStore` holds `status`
+  (`loading|signed_out|signed_in` — the third state exists so the async restore can't flash
+  signed-out/bounce the guard) + `session`, written **only** by `useAuthListener` (mounted
+  once in `App`: `getSession()` restore + `onAuthStateChange`, which is also how SDK
+  auto-refresh lands fresh tokens — no bespoke expiry code; consumers read
+  `session.access_token` at the moment of use). Persistence is the SDK default
+  (localStorage + autoRefresh) — a deliberate XSS-exposure vs reload-survival trade-off.
+  `RequireAuth` gates the game route only (leaderboard stays public) and is **UX-only**:
+  the server independently verifies the JWT on every request and on the WS handshake.
 - **Format:** `pnpm exec prettier --check .`
 - **Types:** `pnpm tsc --noEmit`.
 - **Tests:** `pnpm test -- --run --coverage` (Vitest + Testing Library, jsdom).
@@ -368,6 +389,32 @@ uv run celery -A src.adapters.tasks.celery_app beat --loglevel=info
 > `docker compose up worker beat` — both build from the shared root `Dockerfile`
 > (one image, command-per-role). **Beat must stay a singleton** — never scale it,
 > or every scheduled job dispatches twice.
+
+### Production containers (tasks 6.1–6.3)
+
+The root `Dockerfile` is **multi-stage**: a uv builder (lockfile-first layer order,
+`uv sync --frozen --no-dev`) feeds a bare `python:3.12-slim` runtime — venv + `src/` +
+the Alembic tree only, **non-root**, no build toolchain in the shipped image. It is the
+*one* image for every Python role: the default `CMD` is the API under **gunicorn with
+2 `uvicorn-worker` workers** (never `uvicorn.workers` — deprecated; one async event loop
+per worker, scale out with more containers, not more workers); worker / beat / migrate
+swap the whole command in Compose (`CMD`, not `ENTRYPOINT`, so roles stay swappable).
+Beat's `--schedule` must point at `/tmp` — non-root can't write `/app`.
+
+`docker-compose.prod.yml` is the local ECS rehearsal: config strictly via environment
+with `${VAR:?}` fail-fast (no dev-fallback credentials), a one-shot `migrate` service
+(`alembic upgrade head`) gating the DB consumers via `service_completed_successfully`,
+a `/health` healthcheck (stdlib urllib — the slim image has no curl), `restart: always`
++ memory limits on long-running services, and no source mounts / hot reload. The
+frontend is *not* served there — its prod story (static build + `/api`→`/v1` strip)
+lands with the ALB (task 6.9). Postgres/Redis run as containers only to keep the
+rehearsal self-contained; the real deploy swaps `DATABASE_URL`/`REDIS_URL` to RDS /
+ElastiCache — exactly what env-only config buys.
+
+```bash
+JWT_SECRET=… POSTGRES_PASSWORD=… SUPABASE_URL=… \
+  docker compose -f docker-compose.prod.yml up --build
+```
 
 ### Key env vars (copy `.env.example` → `.env`)
 
